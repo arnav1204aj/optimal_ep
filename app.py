@@ -76,7 +76,8 @@ if st.button("Calculate Optimal Entry Point"):
             phase = phase_mapping[overnum]
             paceweight = gchar[ground_name][overnum - 1] / 100
             spinweight = 1 - paceweight
-
+            paceweight = np.pow(paceweight,1.5)
+            spinweight = np.pow(spinweight,1.5)
             spin_prob = spinweight * (num_spinners / (num_spinners + num_pacers))
             pace_prob = paceweight * (num_pacers / (num_spinners + num_pacers))
 
@@ -121,8 +122,10 @@ if st.button("Calculate Optimal Entry Point"):
             phase_weight = phase_experience[batter][phase] / 100
 
             if bfaced <= negdur[batter]:
-                spin_intent /= 2
-                pace_intent /= 2
+                # spin_intent /= 2
+                # pace_intent /= 2
+                spin_intent=0
+                pace_intent=0
 
             intent += (pace_intent * phase_weight * pace_prob / np.sqrt(pace_fshot)) + \
                       (spin_intent * phase_weight * spin_prob / np.sqrt(spin_fshot))
