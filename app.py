@@ -128,10 +128,17 @@ if st.button("Calculate Optimal Entry Point"):
                 pace_intent=0
 
             intent += (pace_intent * phase_weight * pace_prob / np.sqrt(pace_fshot)) + \
-                      (spin_intent * phase_weight * spin_prob / np.sqrt(spin_fshot))
+                      (1.5*spin_intent * phase_weight * spin_prob / np.sqrt(spin_fshot))
 
         acc[s_ball] = intent / (120 - s_ball)
 
     max_index = int(np.argmax(acc))
     max_index = max_index + 1
+    
     st.success(f"📍 Optimal Entry Point: Ball {max_index}  (Over {(max_index-1)//6 + 1})")
+    # Average acc per over
+    # over_averages = [np.mean(acc[i:i+6]) for i in range(0, 120, 6)]
+    # best_over = int(np.argmax(over_averages)) + 1  # +1 to make it 1-indexed
+
+    # st.success(f"📍 Optimal Entry Over: Over {best_over}")
+
