@@ -132,7 +132,7 @@ if st.button("Calculate Optimal Entry Point"):
              spin_probs[ball] = 1.5*spin_prob
              pace_probs[ball] = pace_prob
             intent += ((pace_intent * phase_weight * pace_prob / pace_fshot) + \
-                      (1.5*spin_intent * phase_weight * spin_prob / spin_fshot))
+                      (spin_intent * phase_weight * spin_prob / spin_fshot))
        
         acc[s_ball] = (intent / (120 - s_ball))
 
@@ -144,7 +144,7 @@ if st.button("Calculate Optimal Entry Point"):
     # Average acc per over
     avg_spin_prob  = np.mean(spin_probs)
     avg_pace_prob = np.mean(pace_probs)
-    acc = acc/(avg_spin_prob + avg_pace_prob)
+#     acc = acc/(avg_spin_prob + avg_pace_prob)
     over_averages = [np.mean(acc[i:i+6]) for i in range(0, 120, 6)]
 
        # Get top 3 overs (1-indexed)
