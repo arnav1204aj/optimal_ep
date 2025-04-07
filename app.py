@@ -71,6 +71,7 @@ if st.button("Calculate Optimal Entry Point"):
     for s_ball in range(120):
         bfaced = 0
         intent = 0
+        
         for ball in range(s_ball, 120):
             bfaced += 1
             overnum = (ball // 6) + 1
@@ -127,12 +128,13 @@ if st.button("Calculate Optimal Entry Point"):
                 # pace_intent /= 2
                 spin_intent=0
                 pace_intent=0
-            
+            if ball==s_ball :   
+             spin_probs[ball] = 1.5*spin_prob
+             pace_probs[ball] = pace_prob
             intent += ((pace_intent * phase_weight * pace_prob / pace_fshot) + \
                       (1.5*spin_intent * phase_weight * spin_prob / spin_fshot))
-        spin_probs[s_ball] = 1.5*spin_prob
-        pace_probs[s_ball] = pace_prob
-        acc[s_ball] = intent / (120 - s_ball)
+       
+        acc[s_ball] = (intent / (120 - s_ball))
 
 #     max_index = int(np.argmax(acc))
 #     max_index = max_index + 1
