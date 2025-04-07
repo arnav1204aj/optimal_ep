@@ -66,7 +66,8 @@ if st.button("Calculate Optimal Entry Point"):
         st.error("❗ Please select at least one bowler (spinner or pacer).")
    else:      
     acc = np.zeros(120)
-
+    spin_probs = np.zeros(120)
+    pace_probs = np.zeros(120)
     for s_ball in range(120):
         bfaced = 0
         intent = 0
@@ -126,10 +127,11 @@ if st.button("Calculate Optimal Entry Point"):
                 # pace_intent /= 2
                 spin_intent=0
                 pace_intent=0
-
+            
             intent += ((pace_intent * phase_weight * pace_prob / np.sqrt(pace_fshot)) + \
-                      (1.5*spin_intent * phase_weight * spin_prob / np.sqrt(spin_fshot)))/(pace_prob + 1.5*spin_prob)
-
+                      (1.5*spin_intent * phase_weight * spin_prob / np.sqrt(spin_fshot)))
+        spin_probs[s_ball] = 1.5*spin_prob
+        pace_probs[s_ball] = pace_prob
         acc[s_ball] = intent / (120 - s_ball)
 
 #     max_index = int(np.argmax(acc))
@@ -138,6 +140,9 @@ if st.button("Calculate Optimal Entry Point"):
 #     st.success(f"📍 Optimal Entry Point: Ball {max_index}  (Over {(max_index-1)//6 + 1})")
        # Average acc per over
     # Average acc per over
+    avg_spin_prob  = np.mean(spin_probs)
+    avg_pace_prob = np.mean(pace_probs)
+    acc = acc/(avg_spin_prob + avg_pace_prob)
     over_averages = [np.mean(acc[i:i+6]) for i in range(0, 120, 6)]
 
        # Get top 3 overs (1-indexed)
