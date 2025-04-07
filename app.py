@@ -132,13 +132,43 @@ if st.button("Calculate Optimal Entry Point"):
 
         acc[s_ball] = intent / (120 - s_ball)
 
-    max_index = int(np.argmax(acc))
-    max_index = max_index + 1
+#     max_index = int(np.argmax(acc))
+#     max_index = max_index + 1
     
-    st.success(f"📍 Optimal Entry Point: Ball {max_index}  (Over {(max_index-1)//6 + 1})")
+#     st.success(f"📍 Optimal Entry Point: Ball {max_index}  (Over {(max_index-1)//6 + 1})")
+       # Average acc per over
     # Average acc per over
-    # over_averages = [np.mean(acc[i:i+6]) for i in range(0, 120, 6)]
-    # best_over = int(np.argmax(over_averages)) + 1  # +1 to make it 1-indexed
+    over_averages = [np.mean(acc[i:i+6]) for i in range(0, 120, 6)]
 
-    # st.success(f"📍 Optimal Entry Over: Over {best_over}")
+       # Get top 3 overs (1-indexed)
+    top_3_indices = np.argsort(over_averages)[-3:][::-1]
+    top_3_overs = [(i + 1, over_averages[i]) for i in top_3_indices]
+
+       # Display results with style
+    # ---------- Display Top 3 Overs Styled Output ----------
+    st.markdown("---")
+    st.markdown("### Top 3 Optimal Entry Overs")
+
+       # Medal Icons
+    medals = ["🥇", "🥈", "🥉"]
+
+       # Style and display each over result
+    for rank, (over_num, avg_val) in enumerate(top_3_overs):
+       st.markdown(f"""
+        <div style="
+            background-color:#f0f2f6;
+            padding:12px 20px;
+            margin-bottom:10px;
+            border-left: 6px solid #4b8bbe;
+            border-radius:8px;
+        ">
+            <h5 style="margin:0; color:#222;">{medals[rank]} <b>Over {over_num}</b></h5>
+            <p style="margin:0; color:#444;">
+                Average Acceleration Score: <code style="font-size: 16px;">{avg_val:.4f}</code>
+            </p>
+        </div>
+    """, unsafe_allow_html=True)
+
+
+
 
