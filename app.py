@@ -82,7 +82,9 @@ if st.button("Calculate Optimal Entry Point"):
             spinweight = np.pow(spinweight,1.5)
             spin_prob = spinweight * (num_spinners / (num_spinners + num_pacers))
             pace_prob = paceweight * (num_pacers / (num_spinners + num_pacers))
-
+            total_prob  = pace_prob + spin_prob
+            pace_prob = pace_prob/total_prob
+            spin_prob = spin_prob/total_prob
             # Spin Intent
             if s_intent[batter]['othbatballs'][overnum - 1] == 0 or \
                s_intent[batter]['batballs'][overnum - 1] == 0 or \
