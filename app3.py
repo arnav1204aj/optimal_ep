@@ -121,7 +121,7 @@ def get_optimal_batting_order(batters):
 
 # ----------------- UI -------------------
 
-st.title("🏏 T20 Entry Optimization Toolkit")
+st.title("T20 Entry Optimization Toolkit")
 
 tab1, tab2 = st.tabs(["📋 Optimal Batting Order", "📈 Optimal Entry Point"])
 
