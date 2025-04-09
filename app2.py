@@ -154,7 +154,22 @@ def get_optimal_batting_order(batters):
 
 # ------- Streamlit UI -------
 st.title("📋 Optimal Batting Order Generator")
-
+st.markdown("""
+    <div style="position: absolute; top: 0px; right: 10px;">
+        <a href="https://optimalentrypoint.streamlit.app/" target="_blank" style="
+            text-decoration: none;
+            background-color: #4CAF50;
+            color: white;
+            padding: 8px 14px;
+            border-radius: 6px;
+            font-weight: bold;
+            font-size: 14px;
+            border: none;
+        ">
+            Entry Calculator
+        </a>
+    </div>
+""", unsafe_allow_html=True)
 common_batters = sorted(set(intent_dict) & set(fshot_dict) & set(negdur) & set(phase_experience))
 selected_batters = st.multiselect("Select Batters", common_batters)
 ground_name = st.selectbox("Select Ground", sorted(gchar.keys()))

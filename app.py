@@ -48,8 +48,27 @@ phase_mapping = {
 }
 
 # ---------- User Interface ----------
+
+
+
 st.title("📈 Optimal Entry Point Calculator")
 
+st.markdown("""
+    <div style="position: absolute; top: 0px; right: 10px;">
+        <a href="https://optimalorder.streamlit.app/" target="_blank" style="
+            text-decoration: none;
+            background-color: #4CAF50;
+            color: white;
+            padding: 8px 14px;
+            border-radius: 6px;
+            font-weight: bold;
+            font-size: 14px;
+            border: none;
+        ">
+            Order Optimizer
+        </a>
+    </div>
+""", unsafe_allow_html=True)
 # Get common batters from all dictionaries
 common_batters = set(intent_dict.keys()) & set(fshot_dict.keys()) & \
                  set(negdur.keys()) & set(phase_experience.keys()) & \
