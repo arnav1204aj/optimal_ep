@@ -190,7 +190,7 @@ with tab2:
                     background-color:#f0f2f6;
                     padding:12px 20px;
                     margin-bottom:10px;
-                    border-left: 6px solid #4b8bbe;
+                    border-left: 6px solid #ff0000;
                     border-radius:8px;
                 ">
                     <h5 style="margin:0; color:#222;">{medals[rank]} <b>Over {over_num}</b></h5>
