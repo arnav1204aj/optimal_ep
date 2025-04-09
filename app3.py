@@ -98,7 +98,7 @@ def get_top_3_overs(batter, ground_name, num_spinners, num_pacers):
 
         acc[s_ball] = (intent / (120 - s_ball))
     over_averages = [np.mean(acc[i:i + 6]) for i in range(0, 120, 6)]
-    top_3_indices = np.argsort(over_averages)[-3:][::-1]
+    top_3_indices = np.argsort(over_averages)[-5:][::-1]
     return [(i + 1, over_averages[i]) for i in top_3_indices]
 
 def get_optimal_batting_order(batters):
