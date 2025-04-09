@@ -130,8 +130,8 @@ with tab1:
     common_batters = sorted(set(intent_dict) & set(fshot_dict) & set(negdur) & set(phase_experience))
     selected_batters = st.multiselect("Select Batters", common_batters)
     ground_name = st.selectbox("Select Ground", sorted(gchar.keys()), key="ground1")
-    num_spinners = st.slider("Number of Spinners", 0, 6, 2)
-    num_pacers = st.slider("Number of Pacers", 0, 6, 4)
+    num_spinners = st.slider("Number of spinners in the opposition", 0, 6, 2)
+    num_pacers = st.slider("Number of pacers in the opposition", 0, 6, 4)
     if st.button("🔄 Compute Optimal Batting Order"):
         if selected_batters:
             batter_over_map = {batter: get_top_3_overs(batter, ground_name, num_spinners, num_pacers) for batter in selected_batters}
@@ -168,8 +168,8 @@ with tab2:
     common_batters = sorted(set(intent_dict) & set(fshot_dict) & set(negdur))
     batter = st.selectbox("Select Batter", common_batters, key="batter_entry")
     ground_name = st.selectbox("Select Ground", sorted(gchar.keys()), key="ground2")
-    num_spinners = st.slider("Number of Spinners", 0, 6, 2, key="spin_entry")
-    num_pacers = st.slider("Number of Pacers", 0, 6, 4, key="pace_entry")
+    num_spinners = st.slider("Number of spinners in the opposition", 0, 6, 2, key="spin_entry")
+    num_pacers = st.slider("Number of pacers in the opposition", 0, 6, 4, key="pace_entry")
 
     if st.button("📊 Calculate Entry Point"):
        if num_spinners == 0 and num_pacers == 0:
