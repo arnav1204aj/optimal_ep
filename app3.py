@@ -43,7 +43,7 @@ phase_mapping = {
 }
 
 # ----------------- Helper Functions -------------------
-def get_top_3_overs(batter, ground_name, num_spinners, num_pacers):
+def get_top_3_overs(batter, ground_name, num_spinners, num_pacers, n):
     acc = np.zeros(120)
     for s_ball in range(120):
         bfaced = 0
@@ -98,7 +98,7 @@ def get_top_3_overs(batter, ground_name, num_spinners, num_pacers):
 
         acc[s_ball] = (intent / (120 - s_ball))
     over_averages = [np.mean(acc[i:i + 6]) for i in range(0, 120, 6)]
-    top_3_indices = np.argsort(over_averages)[-3:][::-1]
+    top_3_indices = np.argsort(over_averages)[-n:][::-1]
     return [(i + 1, over_averages[i]) for i in top_3_indices]
 
 def get_optimal_batting_order(batters):
@@ -134,7 +134,7 @@ with tab1:
     num_pacers = st.slider("Number of pacers in the opposition", 0, 6, 4)
     if st.button("🔄 Compute Optimal Batting Order"):
         if selected_batters:
-            batter_over_map = {batter: get_top_3_overs(batter, ground_name, num_spinners, num_pacers) for batter in selected_batters}
+            batter_over_map = {batter: get_top_3_overs(batter, ground_name, num_spinners, num_pacers, 5) for batter in selected_batters}
             order, avg_score = get_optimal_batting_order(batter_over_map)
             sorted_order = sorted(order.items(), key=lambda x: x[1][0])
              # Render title and average acceleration
@@ -175,7 +175,7 @@ with tab2:
        if num_spinners == 0 and num_pacers == 0:
         st.error("❗ Please select at least one bowler (spinner or pacer).")
        else:  
-        overs = get_top_3_overs(batter, ground_name, num_spinners, num_pacers)
+        overs = get_top_3_overs(batter, ground_name, num_spinners, num_pacers,3)
         
         st.markdown("---")
         st.markdown("### Top 3 Optimal Entry Overs")
