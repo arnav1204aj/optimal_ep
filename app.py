@@ -129,15 +129,19 @@ if st.button("Calculate Optimal Entry Point"):
                 # pace_intent /= 2
                 spin_intent=0
                 pace_intent=0
-              
-            if pace_prob>1.5*spin_prob:
-                 intent += (pace_intent * phase_weight * pace_prob / np.sqrt(pace_fshot)) 
 
-            else:
-                 intent += (spin_intent * phase_weight * spin_prob / np.sqrt(spin_fshot))    
+            if pace_intent<0.95:
+                 pace_intent = 0
+            if spin_intent<0.95:
+                 spin_intent = 0        
+            # if pace_prob>1.5*spin_prob:
+            #      intent += (pace_intent * phase_weight * pace_prob / np.sqrt(pace_fshot)) 
+
+            # else:
+            #      intent += (spin_intent * phase_weight * spin_prob / np.sqrt(spin_fshot))    
                  
-            # intent += ((pace_intent * phase_weight * pace_prob / np.sqrt(pace_fshot)) + \
-            #           (spin_intent * phase_weight * spin_prob / np.sqrt(spin_fshot)))
+            intent += ((pace_intent * phase_weight * pace_prob / np.sqrt(pace_fshot)) + \
+                      (spin_intent * phase_weight * spin_prob / np.sqrt(spin_fshot)))
        
         acc[s_ball] = (intent / (120 - s_ball))
 
