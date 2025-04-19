@@ -11,6 +11,7 @@ def load_data():
             return pickle.load(f)
 
     data = {
+        # 'absintent' : load_pickle('t20/absintents.bin'),
         'intent_dict': load_pickle('t20/intents.bin'),
         'p_intent': load_pickle('t20/paceintents.bin'),
         's_intent': load_pickle('t20/spinintents.bin'),
@@ -25,6 +26,7 @@ def load_data():
 
 
 data = load_data()
+# absintent = data['absintent']
 intent_dict = data['intent_dict']
 p_intent = data['p_intent']
 s_intent = data['s_intent']
@@ -61,14 +63,14 @@ def get_top_3_overs(batter, ground_name, num_spinners, num_pacers, n):
             spin_prob /= total_prob
 
             # Intent & False Shot Calculation with Fallback
-            def get_metric(intent_data, fallback, key):
+            def get_metric(intent_data, fallback1, key):
                 try:
                     if intent_data['othbatballs'][overnum - 1] == 0 or intent_data['batballs'][overnum - 1] == 0 or intent_data['othbatruns'][overnum - 1] == 0:
-                        return fallback[batter][key]['1-20']
-                    return (intent_data['batruns'][overnum - 1] / intent_data['batballs'][overnum - 1]) / \
+                        return fallback1[batter][key]['1-20'] #*np.sqrt(fallback2[batter][key]['1-20'])
+                    return np.pow(intent_data['batruns'][overnum - 1] / intent_data['batballs'][overnum - 1],1) / \
                            (intent_data['othbatruns'][overnum - 1] / intent_data['othbatballs'][overnum - 1])
                 except:
-                    return fallback[batter][key]['1-20']
+                    return fallback1[batter][key]['1-20'] #*np.sqrt(fallback2[batter][key]['1-20'])
 
             def get_fshot(fshot_data, fallback, key):
                 try:
@@ -129,7 +131,8 @@ with tab1:
     st.header("📋 Optimal Batting Order Generator")
     common_batters = sorted(set(intent_dict) & set(fshot_dict) & set(negdur) & set(phase_experience))
     selected_batters = st.multiselect("Select Batters", common_batters)
-    ground_name = st.selectbox("Select Ground", sorted(gchar.keys()), key="ground1")
+    ground_name = st.selectbox("Select Ground", ["Neutral Venue"] + [g for g in gchar if g != "Neutral Venue"], key="ground1")
+
     num_spinners = st.slider("Number of spinners in the opposition", 0, 6, 2)
     num_pacers = st.slider("Number of pacers in the opposition", 0, 6, 4)
     if st.button("🔄 Compute Optimal Batting Order"):
@@ -167,7 +170,8 @@ with tab2:
     st.header("📈 Optimal Entry Point Calculator")
     common_batters = sorted(set(intent_dict) & set(fshot_dict) & set(negdur))
     batter = st.selectbox("Select Batter", common_batters, key="batter_entry")
-    ground_name = st.selectbox("Select Ground", sorted(gchar.keys()), key="ground2")
+    ground_name = st.selectbox("Select Ground", ["Neutral Venue"] + [g for g in gchar if g != "Neutral Venue"], key="ground2")
+
     num_spinners = st.slider("Number of spinners in the opposition", 0, 6, 2, key="spin_entry")
     num_pacers = st.slider("Number of pacers in the opposition", 0, 6, 4, key="pace_entry")
 
