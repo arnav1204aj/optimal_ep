@@ -129,7 +129,7 @@ tab1, tab2 = st.tabs(["📋 Optimal Batting Order", "📈 Optimal Entry Point"])
 
 with tab1:
     st.header("📋 Optimal Batting Order Generator")
-    common_batters = sorted(set(intent_dict) & set(fshot_dict) & set(negdur) & set(phase_experience))
+    common_batters = set(phase_experience)
     selected_batters = st.multiselect("Select Batters", common_batters)
     ground_name = st.selectbox("Select Ground", ["Neutral Venue"] + [g for g in gchar if g != "Neutral Venue"], key="ground1")
 
@@ -168,7 +168,7 @@ with tab1:
 
 with tab2:
     st.header("📈 Optimal Entry Point Calculator")
-    common_batters = sorted(set(intent_dict) & set(fshot_dict) & set(negdur))
+    common_batters = set(phase_experience)
     batter = st.selectbox("Select Batter", common_batters, key="batter_entry")
     ground_name = st.selectbox("Select Ground", ["Neutral Venue"] + [g for g in gchar if g != "Neutral Venue"], key="ground2")
 
