@@ -356,7 +356,7 @@ with tab3:
 
                 tbl = []
                 for idx, (bat, (ov, sc, *_)) in enumerate(order_sorted, 1):
-                    label = "Optmial Order" if idx == 1 else f""
+                    label = "Optimal Order" if idx == 1 else f""
                     tbl.append([label,"➡️", bat,  f"⚡ {sc:.4f}"])
 
                 for row in tbl:
