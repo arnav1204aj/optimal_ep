@@ -2,6 +2,7 @@ import streamlit as st
 import numpy as np
 import pickle
 import networkx as nx
+from agg_score import aggression_score
 st.set_page_config(page_title="T20 Entry Planner", layout="wide")
 # ----------------- Load Data -------------------
 @st.cache_data
@@ -20,7 +21,8 @@ def load_data():
         'fshot_dict': load_pickle('t20/fshots.bin'),
         'gchar': load_pickle('t20/ground_char.bin'),
         'phase_experience': load_pickle('t20/phase_breakdown.bin'),
-        'negdur': load_pickle('t20/negative_dur.bin')
+        'negdur': load_pickle('t20/negative_dur.bin'),
+        'overwise_gchar': load_pickle("t20/overwise_scores.bin")
     }
     return data
 
@@ -36,6 +38,7 @@ fshot_dict = data['fshot_dict']
 gchar = data['gchar']
 phase_experience = data['phase_experience']
 negdur = data['negdur']
+overwise_dict = data['overwise_gchar']
 
 phase_mapping = {
     i: "Powerplay (1-6 overs)" if i <= 6 else 
@@ -45,9 +48,9 @@ phase_mapping = {
 }
 
 # ----------------- Helper Functions -------------------
-def get_top_3_overs(batter, ground_name, num_spinners, num_pacers, n):
+def get_top_3_overs(batter, ground_name, num_spinners, num_pacers, n, power,start,power2):
     acc = np.zeros(120)
-    for s_ball in range(120):
+    for s_ball in range(start,120):
         bfaced = 0
         intent = 0
         for ball in range(s_ball, 120):
@@ -95,8 +98,8 @@ def get_top_3_overs(batter, ground_name, num_spinners, num_pacers, n):
                 pace_intent = 0
 
             phase_weight = phase_experience[batter][phase] / 100
-            intent += ((pace_intent * phase_weight * pace_prob / np.sqrt(pace_fshot)) +
-                       (spin_intent * phase_weight * spin_prob / np.sqrt(spin_fshot)))
+            intent += ((np.pow(pace_intent,power2) * phase_weight * pace_prob / np.pow(pace_fshot,power)) +
+                       (np.pow(spin_intent,power2) * phase_weight * spin_prob / np.pow(spin_fshot,power)))
 
         acc[s_ball] = (intent / (120 - s_ball))
     over_averages = [np.mean(acc[i:i + 6]) for i in range(0, 120, 6)]
@@ -121,11 +124,72 @@ def get_optimal_batting_order(batters):
         total_acc += acc_val
     return batting_order, total_acc / len(batters)
 
+import networkx as nx
+from itertools import chain
+
+def get_optimal_batting_order_decay(batters: dict, decay: float = 0.9):
+    """
+    Parameters
+    ----------
+    batters : dict
+        {batter_name: [(over, acceleration), ...], ...}
+    decay : float, optional
+        Factor in (0, 1]. 1.0 ≡ no decay; 0.9 means each later spot
+        is worth 90 % of the previous one.
+
+    Returns
+    -------
+    batting_order : dict
+        {batter_name: (over, raw_acc, weighted_acc)}
+    total_weighted_acc : float
+        Σ decay**(pos-1) * acc, the maximised objective value
+    """
+    # --------- helpers -------------------------------------------------------
+    # speed-ups for look-ups and consistent over-indexing
+    batter_over = {b: dict(lst) for b, lst in batters.items()}
+    all_overs      = sorted({ov for lst in batters.values() for ov, _ in lst})
+    over_to_pos    = {ov: i for i, ov in enumerate(all_overs)}  # 0-based pos
+
+    # --------- build weighted graph -----------------------------------------
+    G = nx.Graph()
+    for batter, over_acc in batter_over.items():
+        for ov, acc in over_acc.items():
+            pos          = over_to_pos[ov]          # batting position (0, 1, …)
+            weight       = (decay ** pos) * acc     # decayed weight
+            G.add_edge(batter, f"Over{ov}", weight=weight)
+
+    # --------- maximum-weight matching --------------------------------------
+    matching = nx.algorithms.matching.max_weight_matching(
+        G, maxcardinality=True, weight="weight"
+    )
+
+    batting_order = {}
+    total_weighted = 0.0
+    for a, b in matching:
+        # ensure `batter` comes first, `OverX` second
+        if a.startswith("Over"):
+            a, b = b, a
+        ov   = int(b.replace("Over", ""))
+        pos  = over_to_pos[ov]
+        acc  = batter_over[a][ov]
+        wacc = (decay ** pos) * acc
+
+        batting_order[a] = (ov, acc, wacc)
+        total_weighted  += acc
+
+    return batting_order, total_weighted/len(matching)
+
+
+
 # ----------------- UI -------------------
 
 st.title("T20 Entry Optimization Toolkit")
+tab1, tab2, tab3 = st.tabs(
+    ["📋 Optimal Batting Order", "📈 Optimal Entry Point", "🎯 Scenario-Based Order"]
+)
 
-tab1, tab2 = st.tabs(["📋 Optimal Batting Order", "📈 Optimal Entry Point"])
+
+
 
 with tab1:
     st.header("📋 Optimal Batting Order Generator")
@@ -137,7 +201,7 @@ with tab1:
     num_pacers = st.slider("Number of pacers in the opposition", 0, 6, 4)
     if st.button("🔄 Compute Optimal Batting Order"):
         if selected_batters:
-            batter_over_map = {batter: get_top_3_overs(batter, ground_name, num_spinners, num_pacers, 5) for batter in selected_batters}
+            batter_over_map = {batter: get_top_3_overs(batter, ground_name, num_spinners, num_pacers, 5, 0.5,0,1) for batter in selected_batters}
             order, avg_score = get_optimal_batting_order(batter_over_map)
             sorted_order = sorted(order.items(), key=lambda x: x[1][0])
              # Render title and average acceleration
@@ -179,7 +243,7 @@ with tab2:
        if num_spinners == 0 and num_pacers == 0:
         st.error("❗ Please select at least one bowler (spinner or pacer).")
        else:  
-        overs = get_top_3_overs(batter, ground_name, num_spinners, num_pacers,3)
+        overs = get_top_3_overs(batter, ground_name, num_spinners, num_pacers,3, 0.5,0,1)
         
         st.markdown("---")
         st.markdown("### Top 3 Optimal Entry Overs")
@@ -203,3 +267,100 @@ with tab2:
                     </p>
                 </div>
             """, unsafe_allow_html=True)
+
+# -------------- Scenario-Based Order tab --------------------------------
+with tab3:
+    st.header("🎯 Scenario-Based Batting Order")
+
+    # --- match Scenario inputs -----------------------------------------
+    col1, col2 = st.columns(2)
+    over_done   = col1.slider("Overs completed", 0, 20, 6)
+    runs_so_far = col1.number_input("Runs scored so far", 0, 300, 50, step=1)
+    
+
+    chasing = col2.checkbox("Chasing target?")
+    target  = col2.number_input("Target score (if chasing)", 1, 300, 180, step=1, disabled=not chasing)
+
+    ground_sb = st.selectbox(
+        "Select Ground",
+        ["Neutral Venue"] + [g for g in overwise_dict if g != "Neutral Venue"],
+        key="ground3"
+    )
+
+    n_spin_sb  = st.slider("Spin Overs left", 0, 20, 10, key="spin_sb")
+    n_pace_sb  = st.slider("Pace Overs left", 0, 20, 10, key="pace_sb")
+    spin_strength = st.slider("Wickets lost to spin", 0, 10, 0, key="spin_w")
+    pace_strength = st.slider("Wickets lost to pace", 0, 10, 0, key="pace_w")
+    # --- pick available batters -----------------------------------------
+    common_batters = set(intent_dict) & set(fshot_dict) & set(negdur) & set(phase_experience)
+    avail_batters  = st.multiselect("Batters still to come", common_batters, key="bat_left")
+
+    # --- load over-wise averages (only once, cached) --------------------
+    # @st.cache_data
+    # def load_overwise():
+    #     with open("t20/overwise_scores.bin", "rb") as f:
+    #         return pickle.load(f)
+    # overwise_dict = load_overwise()
+
+    # --------------------------------------------------------------------
+    if st.button("🔄 Compute Scenario-Based Order"):
+        if over_done >= 20:
+            st.error("All overs completed — no batting order to optimise.")
+        elif not avail_batters:
+            st.warning("Please select at least one batter.")
+        elif n_spin_sb + n_pace_sb == 0:
+            st.warning("Select at least one spinner or pacer in the opposition.")
+        
+        else:
+            # 1) aggression score (0 ⇒ defensive … 1 ⇒ ultra-aggressive)
+            aggr, rel, decay = aggression_score(
+                ground_name   = ground_sb,
+                over_number   = over_done,
+                runs_scored   = runs_so_far,
+                wickets_lost  = spin_strength+pace_strength,
+                ground_over_avg = overwise_dict,
+                is_chasing    = chasing,
+                target        = target if chasing else None,
+            )
+            total_wt = aggr+rel
+            aggr = 1.5*aggr/total_wt
+            rel = 1.5*rel/total_wt
+            # print(aggr,rel,decay)
+            # 2) build {batter: top-N overs list}, filtering out overs gone
+            batter_map = {}
+            for b in avail_batters:
+                top_ovs = get_top_3_overs(
+                    batter      = b,
+                    ground_name = ground_sb,
+                    num_spinners= n_spin_sb*max(0.5,spin_strength),
+                    num_pacers  = n_pace_sb*max(0.5,pace_strength),
+                    n           = 5,          # search window
+                    power       = rel,
+                    start       = 6*over_done,
+                    power2      = aggr                                # ← dynamic ‘power’ factor
+                )
+                # keep only overs still ahead
+                remaining = [(o, sc) for o, sc in top_ovs if o > over_done]
+                if remaining:
+                    batter_map[b] = remaining
+
+            if not batter_map:
+                st.error("No suitable overs left for the chosen batters.")
+            else:
+                order_sb, avg_acc_sb = get_optimal_batting_order_decay(batter_map,decay)
+                order_sorted = sorted(order_sb.items(), key=lambda x: x[1][0])
+
+                st.markdown("### ✅ Scenario-Based Batting Order")
+                st.markdown(f"#### ⚡ **Avg Accel:** `{avg_acc_sb:.4f}`")
+                st.markdown("---")
+
+                tbl = []
+                for idx, (bat, (ov, sc, *_)) in enumerate(order_sorted, 1):
+                    label = "Optmial Order" if idx == 1 else f""
+                    tbl.append([label,"➡️", bat,  f"⚡ {sc:.4f}"])
+
+                for row in tbl:
+                    c = st.columns([1, 0.2, 1, 2])
+                    for i, txt in enumerate(row):
+                        c[i].markdown(txt)
+
