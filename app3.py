@@ -126,12 +126,16 @@ def _bars_html(avg, pace, spin, max_avg, max_pace, max_spin):
         row("Spin Int-Rel", spin, max_spin, "spin")
     )
 
-def make_order_cards(order_list, max_avg, max_pace, max_spin):
+def make_order_cards(order_list, max_avg, max_pace, max_spin, is_scenario):
     """order_list: [(batter, over, avg, pace, spin), ...]"""
     cards = []
     for i, (b, ov, avg, pace, spin) in enumerate(order_list):
-        header = "Opener" if i < 2 else f"No. {i+1}"
+        if is_scenario:
+            header = "Next In" if i < 1 else f"{i+1}."
+        else:    
+            header = "Opener" if i < 2 else f"No. {i+1}"
         bars = _bars_html(avg, pace, spin, max_avg, max_pace, max_spin)
+        
         cards.append(f"""
         <div class='card'>
             <div class='card-header'>{header}</div>
@@ -139,6 +143,7 @@ def make_order_cards(order_list, max_avg, max_pace, max_spin):
             {bars}
         </div>
         """)
+        
     return "".join(cards)
 
 def make_entry_cards(over_list, max_avg, max_pace, max_spin):
@@ -346,6 +351,7 @@ tab1, tab2, tab3 = st.tabs([
 ])
 
 common_batters = sorted(set(intent_dict) & set(fshot_dict) & set(negdur) & set(phase_experience))
+print(len(common_batters))
 ground_options = ["Neutral Venue"] + [g for g in gchar if g != "Neutral Venue"]
 
 # Tab 1
@@ -373,7 +379,7 @@ with tab1:
                 max_avg  = max(x[2] for x in order_list) if order_list else 1
                 max_pace = max(x[3] for x in order_list) if order_list else 1
                 max_spin = max(x[4] for x in order_list) if order_list else 1
-                render_cards(make_order_cards(order_list, max_avg, max_pace, max_spin), est_rows=len(order_list))
+                render_cards(make_order_cards(order_list, max_avg, max_pace, max_spin,False), est_rows=len(order_list))
 
                 if len(sorted_order) < len(selected_batters):
                     st.markdown("**Note:** Position clashes detected – not optimal to play all of them.")
@@ -409,15 +415,19 @@ with tab3:
     left, right = st.columns(2)
     with left:
         over_done = st.slider("Overs completed", 0, 20, 6)
-        runs_scored = st.number_input("Runs scored so far", 0, 300, 50, step=1)
+        
+        e_spin = st.number_input("Run-rate against spin", 0.00, 100.00, 8.33, step=0.01)
+        e_pace = st.number_input("Run-rate against pace", 0.00, 100.00, 8.33, step=0.01)
+        ground3 = st.selectbox("Select Ground", ground_options, key="tab3_ground")
         chasing = st.checkbox("Chasing target?")
         target = st.number_input("Target score (if chasing)", 1, 300, 180, step=1, disabled=not chasing)
     with right:
-        ground3 = st.selectbox("Select Ground", ground_options, key="tab3_ground")
-        sp3 = st.slider("Spin overs left", 0, 20, 10, key="spin_sb")
-        pc3 = st.slider("Pace overs left", 0, 20, 10, key="pace_sb")
+        runs_scored = st.number_input("Runs scored so far", 0, 300, 50, step=1)
+        
         w_spin = st.slider("Wickets lost to spin", 0, 10, 0, key="spin_w")
         w_pace = st.slider("Wickets lost to pace", 0, 10, 0, key="pace_w")
+        sp3 = st.slider("Spin overs left", 0, 20, 10, key="spin_sb")
+        pc3 = st.slider("Pace overs left", 0, 20, 10, key="pace_sb")
         avail = st.multiselect("Batters still to come", common_batters, key="bat_left")
         run3 = st.button("Compute Scenario-Based Order", key="run3")
 
@@ -441,14 +451,21 @@ with tab3:
             total_wt = aggr + rel if (aggr + rel) != 0 else 1
             aggr = 1.5 * aggr / total_wt
             rel  = 1.5 * rel  / total_wt
-
+            total_wick = w_spin + w_pace
+            total_eco = e_spin + e_pace
+            if total_wick==0:
+                total_wick = 1e9
+            if total_eco==0:
+                total_eco = 1e9    
+            spin_weight = (w_spin/total_wick) + (e_pace/total_eco)
+            pace_weight = (w_pace/total_wick) + (e_spin/total_eco)
             batter_map = {}
             for b in avail:
                 top_ovs = get_top_3_overs(
                     batter      = b,
                     ground_name = ground3,
-                    num_spinners= sp3 * max(0.5, w_spin),
-                    num_pacers  = pc3 * max(0.5, w_pace),
+                    num_spinners= sp3 * max(0.5, spin_weight),
+                    num_pacers  = pc3 * max(0.5, pace_weight),
                     n           = 5,
                     power       = rel,
                     start       = 6 * over_done,
@@ -469,7 +486,7 @@ with tab3:
                 max_avg  = max(x[2] for x in order_list) if order_list else 1
                 max_pace = max(x[3] for x in order_list) if order_list else 1
                 max_spin = max(x[4] for x in order_list) if order_list else 1
-                render_cards(make_order_cards(order_list, max_avg, max_pace, max_spin), est_rows=len(order_list))
+                render_cards(make_order_cards(order_list, max_avg, max_pace, max_spin,True), est_rows=len(order_list))
     else:
         st.info("Configure scenario and click **Compute Scenario-Based Order** to view optimized order.")
 
