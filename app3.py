@@ -122,8 +122,8 @@ def _bars_html(avg, pace, spin, max_avg, max_pace, max_spin):
         """
     return (
         row("Avg Acceleration", avg, max_avg, "avg") +
-        row("Pace Accel", pace, max_pace, "pace") +
-        row("Spin Accel", spin, max_spin, "spin")
+        row("Pace Int-Rel", pace, max_pace, "pace") +
+        row("Spin Int-Rel", spin, max_spin, "spin")
     )
 
 def make_order_cards(order_list, max_avg, max_pace, max_spin):
