@@ -441,6 +441,7 @@ with tab3:
         od    = st.slider("Overs completed", 0,20,6, key="t3_od")
         e_s   = st.number_input("Run rate vs spin",0.0,100.0,8.33,step=0.01, key="t3_es")
         e_p   = st.number_input("Run rate vs pace",0.0,100.0,8.33,step=0.01, key="t3_ep")
+        ground3 = st.selectbox("Select Ground", grounds, key="tab3_ground")
         chase = st.checkbox("Chasing?", key="t3_ch")
         tgt   = st.number_input("Target",1,300,180, disabled=not chase, key="t3_tg")
     with R:
@@ -461,7 +462,7 @@ with tab3:
             st.warning("Select at least one bowler.")
         else:
             ag,rel,dec = aggression_score(
-                ground_name   = grounds[0],
+                ground_name   = ground3,
                 over_number   = od,
                 runs_scored   = rs,
                 wickets_lost  = ws + wp,
