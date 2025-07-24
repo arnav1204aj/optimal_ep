@@ -366,16 +366,15 @@ tab1, tab2, tab3 = st.tabs([
 common_batters = sorted(set(intent_dict) & set(fshot_dict) & set(negdur) & set(phase_experience))
 grounds = ["Neutral Venue"] + [g for g in gchar if g != "Neutral Venue"]
 
-# --- TAB 1: Optimal Batting Order (unchanged) ---
-# -- TAB 1: Optimal Batting Order --
+# --- TAB 1: Optimal Batting Order ---
 with tab1:
     st.subheader("Optimal Batting Order Generator")
-    c1,c2 = st.columns([1,3])
+    c1, c2 = st.columns([1, 3])
     with c1:
         sel     = st.multiselect("Select Batters", common_batters, key="t1_sel")
         g1      = st.selectbox("Select Ground", grounds, key="t1_g")
-        spn     = st.slider("Spinners opp", 0,6,2, key="t1_sp")
-        pac     = st.slider("Pacers opp",   0,6,4, key="t1_pc")
+        spn     = st.slider("Spinners opp", 0, 6, 2,   key="t1_sp")
+        pac     = st.slider("Pacers opp",   0, 6, 4,   key="t1_pc")
         compute = st.button("Compute Optimal Order", key="t1_go")
     with c2:
         if compute:
@@ -383,17 +382,38 @@ with tab1:
                 st.warning("Select at least one batter.")
             else:
                 bm = {b: get_top_3_overs(b, g1, spn, pac, 5, 0.5, 0, 1) for b in sel}
+                optimal_over = {
+                    batter: max(data, key=lambda x: x[1])[0]
+                    for batter, data in bm.items()
+                    if data  # ignore empty lists
+                }
+
+                # 2) Count how many batters got assigned to each over
+                freq = Counter(optimal_over.values())
+
+                # 3) Sum the counts for any over where count > 1
+                clashes = sum(count for count in freq.values() if count > 1)
                 order, avg = get_optimal_batting_order(bm)
                 so    = sorted(order.items(), key=lambda x: x[1][0])
-                ol    = [(b,t[0],t[1],t[2],t[3]) for b,t in so]
+                ol    = [(b, t[0], t[1], t[2], t[3]) for b, t in so]
                 ma    = max((x[2] for x in ol), default=1)
                 mp    = max((x[3] for x in ol), default=1)
                 ms    = max((x[4] for x in ol), default=1)
-                st.metric("Average Acceleration", f"{avg:.4f}")
+
+                # average accel metric
+                # display avg acceleration and clashes side by side
+               
+
+                col1, col2 = st.columns(2)
+                col1.metric("Average Acceleration", f"{avg:.4f}")
+                col2.metric("Positional Clashes", str(clashes))
+
+
                 render_cards(make_order_cards(ol, ma, mp, ms, False), est_rows=len(ol))
         else:
             st.info("Configure and compute.")
-# --- TAB 2: Optimal Entry Point with combined grid ---
+
+# --- TAB 2: Optimal Entry Point ---
 with tab2:
     st.subheader("Optimal Entry Point Calculator")
     c1, c2 = st.columns([1, 3])
@@ -410,38 +430,39 @@ with tab2:
             else:
                 overs = get_top_3_overs(batter, ground2, sp2, pc2, 3, 0.5, 0, 1)
 
-                # dominant phase
-                phases = [phase_mapping[o] for o,_,_,_ in overs]
+                # determine dominant phase
+                phases = [phase_mapping[o] for o, _, _, _ in overs]
                 cnt = Counter(phases)
                 maxc = max(cnt.values())
-                cands = [ph for ph,c in cnt.items() if c==maxc]
+                cands = [ph for ph, c in cnt.items() if c == maxc]
                 phase_avg = {
-                  ph: np.mean([avg for o,avg,_,_ in overs if phase_mapping[o]==ph])
-                  for ph in cands
+                    ph: np.mean([avg for o, avg, _, _ in overs if phase_mapping[o] == ph])
+                    for ph in cands
                 }
-                dominant = sorted(phase_avg.items(), key=lambda x:-x[1])[0][0]
+                dominant = sorted(phase_avg.items(), key=lambda x: -x[1])[0][0]
 
-                # build HTML
-                ma = max(avg for _,avg,_,_ in overs) if overs else 1
-                mp = max(p   for *_,p   in overs) if overs else 1
-                ms = max(s   for *_,_,s in overs) if overs else 1
+                # build combined HTML
+                ma = max(avg for _, avg, _, _ in overs) if overs else 1
+                mp = max(p for *_, p in overs) if overs else 1
+                ms = max(s for *_, _, s in overs) if overs else 1
 
                 combined = (
-                  make_entry_player_card(batter, dominant) +
-                  make_entry_cards(overs, ma, mp, ms)
+                    make_entry_player_card(batter, dominant) +
+                    make_entry_cards(overs, ma, mp, ms)
                 )
                 render_cards(combined, est_rows=1)
         else:
             st.info("Configure parameters and click Calculate Entry Point.")
 
+# --- TAB 3: Scenario-Based Order ---
 with tab3:
     st.subheader("Scenario-Based Order")
-    L,R = st.columns(2)
+    L, R = st.columns(2)
     with L:
         od    = st.slider("Overs completed", 0,20,6, key="t3_od")
         e_s   = st.number_input("Run rate vs spin",0.0,100.0,8.33,step=0.01, key="t3_es")
         e_p   = st.number_input("Run rate vs pace",0.0,100.0,8.33,step=0.01, key="t3_ep")
-        ground3 = st.selectbox("Select Ground", grounds, key="tab3_ground")
+        ground3 = st.selectbox("Select Ground", grounds, key="t3_g")
         chase = st.checkbox("Chasing?", key="t3_ch")
         tgt   = st.number_input("Target",1,300,180, disabled=not chase, key="t3_tg")
     with R:
@@ -461,7 +482,7 @@ with tab3:
         elif s3 + p3 == 0:
             st.warning("Select at least one bowler.")
         else:
-            ag,rel,dec = aggression_score(
+            ag, rel, dec = aggression_score(
                 ground_name   = ground3,
                 over_number   = od,
                 runs_scored   = rs,
@@ -471,15 +492,13 @@ with tab3:
                 target        = tgt if chase else None
             )
             tot = ag + rel or 1
-            ag,rel = 1.5*ag/tot, 1.5*rel/tot
-            tw = ws + wp or 1
-            te = e_s + e_p or 1
-            sw = (ws/tw) + (e_p/te)
-            pw = (wp/tw) + (e_s/te)
+            ag, rel = 1.5*ag/tot, 1.5*rel/tot
+            tw, te = ws+wp or 1, e_s+e_p or 1
+            sw, pw = (ws/tw)+(e_p/te), (wp/tw)+(e_s/te)
 
             bm = {}
             for b in avail:
-                ov = get_top_3_overs(b, grounds[0],
+                ov = get_top_3_overs(b, ground3,
                                      s3*max(0.5, sw),
                                      p3*max(0.5, pw),
                                      5, rel, 6*od, ag)
@@ -490,14 +509,32 @@ with tab3:
             if not bm:
                 st.error("No overs left.")
             else:
+                optimal_over = {
+                    batter: max(data, key=lambda x: x[1])[0]
+                    for batter, data in bm.items()
+                    if data  # ignore empty lists
+                }
+
+                # 2) Count how many batters got assigned to each over
+                freq = Counter(optimal_over.values())
+
+                # 3) Sum the counts for any over where count > 1
+                clashes = sum(count for count in freq.values() if count > 1)
                 order3, avg3 = get_optimal_batting_order_decay(bm, dec)
                 so3 = sorted(order3.items(), key=lambda x: x[1][0])
-                ol3 = [(b,t[0],t[1],t[2],t[3]) for b,t in so3]
+                ol3 = [(b, t[0], t[1], t[2], t[3]) for b, t in so3]
                 ma3 = max((x[2] for x in ol3), default=1)
                 mp3 = max((x[3] for x in ol3), default=1)
                 ms3 = max((x[4] for x in ol3), default=1)
 
-                st.metric("Scenario Avg Acceleration", f"{avg3:.4f}")
+                
+                
+
+                col1, col2 = st.columns(2)
+                col1.metric("Average Acceleration", f"{avg3:.4f}")
+                col2.metric("Positional Clashes", str(clashes))
+
+
                 render_cards(make_order_cards(ol3, ma3, mp3, ms3, True), est_rows=len(ol3))
     else:
         st.info("Configure and compute scenario.")
