@@ -408,7 +408,7 @@ with tab2:
             if sp2 + pc2 == 0:
                 st.error("Select at least one batter.")
             else:
-                overs = get_top_3_overs(batter, ground2, sp2, pc2, 5, 0.5, 0, 1)
+                overs = get_top_3_overs(batter, ground2, sp2, pc2, 3, 0.5, 0, 1)
 
                 # dominant phase
                 phases = [phase_mapping[o] for o,_,_,_ in overs]
