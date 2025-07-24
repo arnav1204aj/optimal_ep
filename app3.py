@@ -1,8 +1,10 @@
 import streamlit as st
 import streamlit.components.v1 as components
 import numpy as np
+import pandas as pd
 import pickle
 import networkx as nx
+from collections import Counter
 from agg_score import aggression_score
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -17,9 +19,6 @@ except Exception:
 # THEME & CSS
 # ─────────────────────────────────────────────────────────────────────────────
 THEME_RED = "#ff0000"
-THEME_DARK = "#1c1c1c"
-THEME_LIGHT = "#f5f5f7"
-
 BASE_CSS = f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -48,12 +47,38 @@ header {{visibility: hidden;}}
   box-shadow: 0 6px 22px rgba(0,0,0,.07);
   border: 1px solid #ececec;
 }}
+
+/* Entry‑player‑card layout */
+.entry-card {{
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}}
+.entry-player-img {{
+  width: 80px;
+  height: 80px;
+  background-color: #f5f5f7;
+  background-size: cover;
+  background-position: center;
+  border-radius: 8px;
+}}
+
+/* Common */
 .card-header {{
   font-size: 1.05rem;
   font-weight: 600;
   color: {THEME_RED};
   margin-bottom: 10px;
   letter-spacing: 0.2px;
+}}
+.player-img {{
+  width: 100%;
+  height: 150px;
+  background-color: #f5f5f7;
+  background-size: cover;
+  background-position: center;
+  border-radius: 8px;
+  margin-bottom: 12px;
 }}
 .name {{
   font-weight: 600;
@@ -62,8 +87,7 @@ header {{visibility: hidden;}}
 }}
 .meta {{
   opacity: .80;
-  font-size: 0.88rem;
-  line-height: 1.1rem;
+  font-size: 0.9rem;
   margin-bottom: 4px;
 }}
 
@@ -74,135 +98,124 @@ header {{visibility: hidden;}}
   gap: 8px;
   margin: 4px 0 6px 0;
 }}
-.bar-label {{
-  width: 120px;
-  font-size: 0.8rem;
-  color: #444;
-}}
-.bar-val {{
-  font-size: 0.8rem;
-  color: #111;
-  width: 52px;
-  text-align: right;
-}}
-.bar {{
-  flex: 1;
-  background: #e6e6e6;
-  border-radius: 6px;
-  height: 8px;
-  overflow: hidden;
-}}
-.bar-fill {{
-  height: 100%;
-  border-radius: 6px;
-}}
-.bar-fill.avg {{ background: {THEME_RED}; }}
-.bar-fill.pace {{ background: #004c97; }}   /* dark blue */
-.bar-fill.spin {{ background: #2ca02c; }}   /* green */
-
-/* Titles */
-.section-title {{ font-size: 1.2rem; font-weight: 600; margin: 4px 0 12px 0; color:#111; }}
+.bar-label {{ width: 120px; font-size: 0.8rem; color: #444; }}
+.bar-val   {{ font-size: 0.8rem; color: #111; width: 52px; text-align: right; }}
+.bar {{ flex: 1; background: #e6e6e6; border-radius: 6px; height: 8px; overflow: hidden; }}
+.bar-fill {{ height: 100%; border-radius: 6px; }}
+.bar-fill.avg  {{ background: {THEME_RED}; }}
+.bar-fill.pace {{ background: #004c97; }}
+.bar-fill.spin {{ background: #2ca02c; }}
 </style>
 """
 
 # ─────────────────────────────────────────────────────────────────────────────
-# HTML builders
+# DATA LOADING
 # ─────────────────────────────────────────────────────────────────────────────
-import math
+@st.cache_data(show_spinner=False)
+def load_data():
+    def lp(path):
+        with open(path, "rb") as f:
+            return pickle.load(f)
+    data = {
+        'intent_dict':      lp('t20_decay/intents.bin'),
+        'p_intent':         lp('t20_decay/paceintents.bin'),
+        's_intent':         lp('t20_decay/spinintents.bin'),
+        'p_fshot':          lp('t20_decay/pacefshots.bin'),
+        's_fshot':          lp('t20_decay/spinfshots.bin'),
+        'fshot_dict':       lp('t20_decay/fshots.bin'),
+        'gchar':            lp('t20_decay/ground_char.bin'),
+        'phase_experience': lp('t20_decay/phase_breakdown.bin'),
+        'negdur':           lp('t20_decay/negative_dur.bin'),
+        'overwise_dict':    lp('t20_decay/overwise_scores.bin'),
+    }
+    players_df = pd.read_csv("players.csv", usecols=["fullname", "image_path"])
+    data["image_map"] = players_df.set_index("fullname")["image_path"].to_dict()
+    return data
 
+data = load_data()
+intent_dict       = data['intent_dict']
+p_intent          = data['p_intent']
+s_intent          = data['s_intent']
+p_fshot           = data['p_fshot']
+s_fshot           = data['s_fshot']
+fshot_dict        = data['fshot_dict']
+gchar             = data['gchar']
+phase_experience  = data['phase_experience']
+negdur            = data['negdur']
+overwise_dict     = data['overwise_dict']
+image_map         = data['image_map']
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PHASE MAPPING
+# ─────────────────────────────────────────────────────────────────────────────
+phase_mapping = {
+    i: ("Powerplay (1-6 overs)" if i <= 6 else
+        "Middle (7-11 overs)"   if i <= 11 else
+        "Middle (12-16 overs)"  if i <= 16 else
+        "Death (17-20 overs)")
+    for i in range(1, 21)
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# HTML BUILDERS
+# ─────────────────────────────────────────────────────────────────────────────
 def _bars_html(avg, pace, spin, max_avg, max_pace, max_spin):
     def row(lbl, val, mx, cls):
         pct = 100 * (val / mx) if mx else 0
         return f"""
         <div class='bar-row'>
-            <span class='bar-label'>{lbl}</span>
-            <div class='bar'><div class='bar-fill {cls}' style='width:{pct:.1f}%;'></div></div>
-            <span class='bar-val'>{val:.4f}</span>
-        </div>
-        """
-    return (
-        row("Avg Acceleration", avg, max_avg, "avg") +
-        row("Pace Int-Rel", pace, max_pace, "pace") +
-        row("Spin Int-Rel", spin, max_spin, "spin")
-    )
+          <span class='bar-label'>{lbl}</span>
+          <div class='bar'><div class='bar-fill {cls}' style='width:{pct:.1f}%;'></div></div>
+          <span class='bar-val'>{val:.4f}</span>
+        </div>"""
+    return (row("Avg Acceleration", avg, max_avg, "avg") +
+            row("Pace Int-Rel",      pace, max_pace, "pace") +
+            row("Spin Int-Rel",      spin, max_spin, "spin"))
 
 def make_order_cards(order_list, max_avg, max_pace, max_spin, is_scenario):
-    """order_list: [(batter, over, avg, pace, spin), ...]"""
     cards = []
     for i, (b, ov, avg, pace, spin) in enumerate(order_list):
-        if is_scenario:
-            header = "Next In" if i < 1 else f"{i+1}."
-        else:    
-            header = "Opener" if i < 2 else f"No. {i+1}"
-        bars = _bars_html(avg, pace, spin, max_avg, max_pace, max_spin)
-        
+        header = ("Next In" if is_scenario and i == 0
+                  else "Opener" if not is_scenario and i < 2
+                  else f"No. {i+1}")
+        img_div = f"<div class='player-img' style=\"background-image:url('{image_map.get(b,'')}');\"></div>"
         cards.append(f"""
         <div class='card'>
-            <div class='card-header'>{header}</div>
-            <div class='name'>{b}</div>
-            {bars}
-        </div>
-        """)
-        
+          {img_div}
+          <div class='card-header'>{header}</div>
+          <div class='name'>{b}</div>
+          {_bars_html(avg, pace, spin, max_avg, max_pace, max_spin)}
+        </div>""")
     return "".join(cards)
 
 def make_entry_cards(over_list, max_avg, max_pace, max_spin):
-    """over_list: [(over, avg, pace, spin), ...]"""
     cards = []
     for ov, avg, pace, spin in over_list:
-        bars = _bars_html(avg, pace, spin, max_avg, max_pace, max_spin)
         cards.append(f"""
         <div class='card'>
-            <div class='card-header'>Over {ov}</div>
-            {bars}
-        </div>
-        """)
+          <div class='card-header'>Over {ov}</div>
+          {_bars_html(avg, pace, spin, max_avg, max_pace, max_spin)}
+        </div>""")
     return "".join(cards)
 
-def render_cards(html_cards: str, est_rows: int = 4):
+def make_entry_player_card(name, dominant_phase):
+    return f"""
+    <div class='card entry-card'>
+      <div class='entry-player-img' style="background-image:url('{image_map.get(name,'')}');"></div>
+      <div>
+        <div class='name'>{name}</div>
+        <div class='meta'>Dominant Phase: {dominant_phase}</div>
+      </div>
+    </div>
+    """
+
+def render_cards(html, est_rows=4):
     height = min(200 * est_rows + 140, 1200)
-    components.html(BASE_CSS + f'<div class="grid">{html_cards}</div>', height=height, scrolling=True)
+    components.html(BASE_CSS + f'<div class="grid">{html}</div>',
+                    height=height, scrolling=True)
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Data Loading
-# ─────────────────────────────────────────────────────────────────────────────
-@st.cache_data(show_spinner=False)
-def load_data():
-    def load_pickle(path):
-        with open(path, "rb") as f:
-            return pickle.load(f)
-    return {
-        'intent_dict':      load_pickle('t20_decay/intents.bin'),
-        'p_intent':         load_pickle('t20_decay/paceintents.bin'),
-        's_intent':         load_pickle('t20_decay/spinintents.bin'),
-        'p_fshot':          load_pickle('t20_decay/pacefshots.bin'),
-        's_fshot':          load_pickle('t20_decay/spinfshots.bin'),
-        'fshot_dict':       load_pickle('t20_decay/fshots.bin'),
-        'gchar':            load_pickle('t20_decay/ground_char.bin'),
-        'phase_experience': load_pickle('t20_decay/phase_breakdown.bin'),
-        'negdur':           load_pickle('t20_decay/negative_dur.bin'),
-        'overwise_dict':    load_pickle('t20_decay/overwise_scores.bin'),
-    }
-
-data = load_data()
-intent_dict        = data['intent_dict']
-p_intent           = data['p_intent']
-s_intent           = data['s_intent']
-p_fshot            = data['p_fshot']
-s_fshot            = data['s_fshot']
-fshot_dict         = data['fshot_dict']
-gchar              = data['gchar']
-phase_experience   = data['phase_experience']
-negdur             = data['negdur']
-overwise_dict      = data['overwise_dict']
-
-phase_mapping = {i: ("Powerplay (1-6 overs)" if i <= 6 else
-                     "Middle (7-11 overs)" if i <= 11 else
-                     "Middle (12-16 overs)" if i <= 16 else
-                     "Death (17-20 overs)") for i in range(1, 21)}
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Core computation helpers
+# COMPUTATION HELPERS
 # ─────────────────────────────────────────────────────────────────────────────
 def get_top_3_overs(batter, ground_name, num_spinners, num_pacers, n, power, start, power2):
     """Return top n overs as (over, avg, pace_avg, spin_avg)."""
@@ -340,7 +353,7 @@ def get_optimal_batting_order_decay(batters: dict, decay: float = 0.9):
     return batting_order, total_w / max(len(matching), 1)
 
 # ─────────────────────────────────────────────────────────────────────────────
-# UI
+# STREAMLIT UI
 # ─────────────────────────────────────────────────────────────────────────────
 st.title("T20 Entry Optimization Toolkit")
 
@@ -351,142 +364,140 @@ tab1, tab2, tab3 = st.tabs([
 ])
 
 common_batters = sorted(set(intent_dict) & set(fshot_dict) & set(negdur) & set(phase_experience))
-print(len(common_batters))
-ground_options = ["Neutral Venue"] + [g for g in gchar if g != "Neutral Venue"]
+grounds = ["Neutral Venue"] + [g for g in gchar if g != "Neutral Venue"]
 
-# Tab 1
+# --- TAB 1: Optimal Batting Order (unchanged) ---
+# -- TAB 1: Optimal Batting Order --
 with tab1:
     st.subheader("Optimal Batting Order Generator")
-    col1, col2 = st.columns([1, 3])
-    with col1:
-        selected_batters = st.multiselect("Select Batters", common_batters)
-        ground = st.selectbox("Select Ground", ground_options, key="tab1_ground")
-        spinners = st.slider("Spinners in opposition", 0, 6, 2, key="tab1_spin")
-        pacers = st.slider("Pacers in opposition", 0, 6, 4, key="tab1_pace")
-        run1 = st.button("Compute Optimal Order", key="run1")
-    with col2:
-        if run1:
-            if not selected_batters:
-                st.warning("Select at least one batter to compute order.")
+    c1,c2 = st.columns([1,3])
+    with c1:
+        sel     = st.multiselect("Select Batters", common_batters, key="t1_sel")
+        g1      = st.selectbox("Select Ground", grounds, key="t1_g")
+        spn     = st.slider("Spinners opp", 0,6,2, key="t1_sp")
+        pac     = st.slider("Pacers opp",   0,6,4, key="t1_pc")
+        compute = st.button("Compute Optimal Order", key="t1_go")
+    with c2:
+        if compute:
+            if not sel:
+                st.warning("Select at least one batter.")
             else:
-                batter_map = {b: get_top_3_overs(b, ground, spinners, pacers, 5, 0.5, 0, 1)
-                              for b in selected_batters}
-                order, avg_score = get_optimal_batting_order(batter_map)
-                sorted_order = sorted(order.items(), key=lambda x: x[1][0])
-
-                st.metric("Average Acceleration", f"{avg_score:.4f}")
-                order_list = [(b, tup[0], tup[1], tup[2], tup[3]) for b, tup in sorted_order]
-                max_avg  = max(x[2] for x in order_list) if order_list else 1
-                max_pace = max(x[3] for x in order_list) if order_list else 1
-                max_spin = max(x[4] for x in order_list) if order_list else 1
-                render_cards(make_order_cards(order_list, max_avg, max_pace, max_spin,False), est_rows=len(order_list))
-
-                if len(sorted_order) < len(selected_batters):
-                    st.markdown("**Note:** Position clashes detected – not optimal to play all of them.")
+                bm = {b: get_top_3_overs(b, g1, spn, pac, 5, 0.5, 0, 1) for b in sel}
+                order, avg = get_optimal_batting_order(bm)
+                so    = sorted(order.items(), key=lambda x: x[1][0])
+                ol    = [(b,t[0],t[1],t[2],t[3]) for b,t in so]
+                ma    = max((x[2] for x in ol), default=1)
+                mp    = max((x[3] for x in ol), default=1)
+                ms    = max((x[4] for x in ol), default=1)
+                st.metric("Average Acceleration", f"{avg:.4f}")
+                render_cards(make_order_cards(ol, ma, mp, ms, False), est_rows=len(ol))
         else:
-            st.info("Configure parameters and click **Compute Optimal Order** to see results.")
-
-# Tab 2
+            st.info("Configure and compute.")
+# --- TAB 2: Optimal Entry Point with combined grid ---
 with tab2:
     st.subheader("Optimal Entry Point Calculator")
-    col1, col2 = st.columns([1, 3])
-    with col1:
-        batter = st.selectbox("Select Batter", common_batters, key="tab2_batter")
-        ground2 = st.selectbox("Select Ground", ground_options, key="tab2_ground")
-        sp2 = st.slider("Spinners in opposition", 0, 6, 2, key="tab2_spin")
-        pc2 = st.slider("Pacers in opposition", 0, 6, 4, key="tab2_pace")
-        run2 = st.button("Calculate Entry Point", key="run2")
-    with col2:
-        if run2:
+    c1, c2 = st.columns([1, 3])
+    with c1:
+        batter = st.selectbox("Select Batter", common_batters, key="e_bat")
+        ground2 = st.selectbox("Select Ground", grounds, key="e_gnd")
+        sp2 = st.slider("Spinners opp", 0, 6, 2, key="e_sp")
+        pc2 = st.slider("Pacers opp",   0, 6, 4, key="e_pc")
+        go2 = st.button("Calculate Entry Point", key="e_go")
+    with c2:
+        if go2:
             if sp2 + pc2 == 0:
-                st.error("Please select at least one bowler (spinner or pacer).")
+                st.error("Select at least one batter.")
             else:
-                top_overs = get_top_3_overs(batter, ground2, sp2, pc2, 3, 0.5, 0, 1)
-                max_avg  = max(x[1] for x in top_overs) if top_overs else 1
-                max_pace = max(x[2] for x in top_overs) if top_overs else 1
-                max_spin = max(x[3] for x in top_overs) if top_overs else 1
-                render_cards(make_entry_cards(top_overs, max_avg, max_pace, max_spin), est_rows=len(top_overs))
-        else:
-            st.info("Select parameters and click **Calculate Entry Point** to view top overs.")
+                overs = get_top_3_overs(batter, ground2, sp2, pc2, 5, 0.5, 0, 1)
 
-# Tab 3
-with tab3:
-    st.subheader("Scenario-Based Batting Order")
-    left, right = st.columns(2)
-    with left:
-        over_done = st.slider("Overs completed", 0, 20, 6)
-        
-        e_spin = st.number_input("Run-rate against spin", 0.00, 100.00, 8.33, step=0.01)
-        e_pace = st.number_input("Run-rate against pace", 0.00, 100.00, 8.33, step=0.01)
-        ground3 = st.selectbox("Select Ground", ground_options, key="tab3_ground")
-        chasing = st.checkbox("Chasing target?")
-        target = st.number_input("Target score (if chasing)", 1, 300, 180, step=1, disabled=not chasing)
-    with right:
-        runs_scored = st.number_input("Runs scored so far", 0, 300, 50, step=1)
-        
-        w_spin = st.slider("Wickets lost to spin", 0, 10, 0, key="spin_w")
-        w_pace = st.slider("Wickets lost to pace", 0, 10, 0, key="pace_w")
-        sp3 = st.slider("Spin overs left", 0, 20, 10, key="spin_sb")
-        pc3 = st.slider("Pace overs left", 0, 20, 10, key="pace_sb")
-        avail = st.multiselect("Batters still to come", common_batters, key="bat_left")
-        run3 = st.button("Compute Scenario-Based Order", key="run3")
+                # dominant phase
+                phases = [phase_mapping[o] for o,_,_,_ in overs]
+                cnt = Counter(phases)
+                maxc = max(cnt.values())
+                cands = [ph for ph,c in cnt.items() if c==maxc]
+                phase_avg = {
+                  ph: np.mean([avg for o,avg,_,_ in overs if phase_mapping[o]==ph])
+                  for ph in cands
+                }
+                dominant = sorted(phase_avg.items(), key=lambda x:-x[1])[0][0]
 
-    if run3:
-        if over_done >= 20:
-            st.error("All overs completed — no batting order to optimise.")
-        elif not avail:
-            st.warning("Please select at least one batter.")
-        elif sp3 + pc3 == 0:
-            st.warning("Select at least one spinner or pacer in the opposition.")
-        else:
-            aggr, rel, decay = aggression_score(
-                ground_name   = ground3,
-                over_number   = over_done,
-                runs_scored   = runs_scored,
-                wickets_lost  = w_spin + w_pace,
-                ground_over_avg = overwise_dict,
-                is_chasing    = chasing,
-                target        = target if chasing else None,
-            )
-            total_wt = aggr + rel if (aggr + rel) != 0 else 1
-            aggr = 1.5 * aggr / total_wt
-            rel  = 1.5 * rel  / total_wt
-            total_wick = w_spin + w_pace
-            total_eco = e_spin + e_pace
-            if total_wick==0:
-                total_wick = 1e9
-            if total_eco==0:
-                total_eco = 1e9    
-            spin_weight = (w_spin/total_wick) + (e_pace/total_eco)
-            pace_weight = (w_pace/total_wick) + (e_spin/total_eco)
-            batter_map = {}
-            for b in avail:
-                top_ovs = get_top_3_overs(
-                    batter      = b,
-                    ground_name = ground3,
-                    num_spinners= sp3 * max(0.5, spin_weight),
-                    num_pacers  = pc3 * max(0.5, pace_weight),
-                    n           = 5,
-                    power       = rel,
-                    start       = 6 * over_done,
-                    power2      = aggr
+                # build HTML
+                ma = max(avg for _,avg,_,_ in overs) if overs else 1
+                mp = max(p   for *_,p   in overs) if overs else 1
+                ms = max(s   for *_,_,s in overs) if overs else 1
+
+                combined = (
+                  make_entry_player_card(batter, dominant) +
+                  make_entry_cards(overs, ma, mp, ms)
                 )
-                remaining = [(o, sc, p, s) for o, sc, p, s in top_ovs if o > over_done]
-                if remaining:
-                    batter_map[b] = remaining
+                render_cards(combined, est_rows=1)
+        else:
+            st.info("Configure parameters and click Calculate Entry Point.")
 
-            if not batter_map:
-                st.error("No suitable overs left for the chosen batters.")
+with tab3:
+    st.subheader("Scenario-Based Order")
+    L,R = st.columns(2)
+    with L:
+        od    = st.slider("Overs completed", 0,20,6, key="t3_od")
+        e_s   = st.number_input("Run rate vs spin",0.0,100.0,8.33,step=0.01, key="t3_es")
+        e_p   = st.number_input("Run rate vs pace",0.0,100.0,8.33,step=0.01, key="t3_ep")
+        chase = st.checkbox("Chasing?", key="t3_ch")
+        tgt   = st.number_input("Target",1,300,180, disabled=not chase, key="t3_tg")
+    with R:
+        rs    = st.number_input("Runs so far", 0,300,50, key="t3_rs")
+        ws    = st.slider("Wickets lost (spin)",0,10,0, key="t3_ws")
+        wp    = st.slider("Wickets lost (pace)",0,10,0, key="t3_wp")
+        s3    = st.slider("Spin overs left", 0,20,10, key="t3_s3")
+        p3    = st.slider("Pace overs left", 0,20,10, key="t3_p3")
+        avail = st.multiselect("Batters left", common_batters, key="t3_av")
+        go3   = st.button("Compute Scenario-Based Order", key="t3_go")
+
+    if go3:
+        if od >= 20:
+            st.error("All overs done.")
+        elif not avail:
+            st.warning("Select at least one batter.")
+        elif s3 + p3 == 0:
+            st.warning("Select at least one bowler.")
+        else:
+            ag,rel,dec = aggression_score(
+                ground_name   = grounds[0],
+                over_number   = od,
+                runs_scored   = rs,
+                wickets_lost  = ws + wp,
+                ground_over_avg = overwise_dict,
+                is_chasing    = chase,
+                target        = tgt if chase else None
+            )
+            tot = ag + rel or 1
+            ag,rel = 1.5*ag/tot, 1.5*rel/tot
+            tw = ws + wp or 1
+            te = e_s + e_p or 1
+            sw = (ws/tw) + (e_p/te)
+            pw = (wp/tw) + (e_s/te)
+
+            bm = {}
+            for b in avail:
+                ov = get_top_3_overs(b, grounds[0],
+                                     s3*max(0.5, sw),
+                                     p3*max(0.5, pw),
+                                     5, rel, 6*od, ag)
+                rem = [(o,sc,pa,sp) for o,sc,pa,sp in ov if o > od]
+                if rem:
+                    bm[b] = rem
+
+            if not bm:
+                st.error("No overs left.")
             else:
-                order_sb, avg_acc_sb = get_optimal_batting_order_decay(batter_map, decay)
-                order_sorted = sorted(order_sb.items(), key=lambda x: x[1][0])
+                order3, avg3 = get_optimal_batting_order_decay(bm, dec)
+                so3 = sorted(order3.items(), key=lambda x: x[1][0])
+                ol3 = [(b,t[0],t[1],t[2],t[3]) for b,t in so3]
+                ma3 = max((x[2] for x in ol3), default=1)
+                mp3 = max((x[3] for x in ol3), default=1)
+                ms3 = max((x[4] for x in ol3), default=1)
 
-                st.metric("Scenario Avg Acceleration", f"{avg_acc_sb:.4f}")
-                order_list = [(b, tup[0], tup[1], tup[2], tup[3]) for b, tup in order_sorted]
-                max_avg  = max(x[2] for x in order_list) if order_list else 1
-                max_pace = max(x[3] for x in order_list) if order_list else 1
-                max_spin = max(x[4] for x in order_list) if order_list else 1
-                render_cards(make_order_cards(order_list, max_avg, max_pace, max_spin,True), est_rows=len(order_list))
+                st.metric("Scenario Avg Acceleration", f"{avg3:.4f}")
+                render_cards(make_order_cards(ol3, ma3, mp3, ms3, True), est_rows=len(ol3))
     else:
-        st.info("Configure scenario and click **Compute Scenario-Based Order** to view optimized order.")
+        st.info("Configure and compute scenario.")
 
