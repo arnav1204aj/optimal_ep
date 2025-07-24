@@ -58,7 +58,7 @@ header {{visibility: hidden;}}
   width: 80px;
   height: 80px;
   background-color: #f5f5f7;
-  background-size: cover;
+  background-size: contain;
   background-position: center;
   border-radius: 8px;
 }}
@@ -75,10 +75,14 @@ header {{visibility: hidden;}}
   width: 100%;
   height: 150px;
   background-color: #f5f5f7;
-  background-size: cover;
+  background-size: contain;
   background-position: center;
   border-radius: 8px;
   margin-bottom: 12px;
+}}
+.player-img,
+.entry-player-img {{
+  background-repeat: no-repeat;
 }}
 .name {{
   font-weight: 600;
