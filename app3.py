@@ -208,7 +208,7 @@ def make_entry_player_card(name, dominant_phase):
       <div class='entry-player-img' style="background-image:url('{image_map.get(name,'')}');"></div>
       <div>
         <div class='name'>{name}</div>
-        <div class='meta'>Dominant Phase: {dominant_phase}</div>
+        <div class='meta'>Opt. Entry Phase: {dominant_phase}</div>
       </div>
     </div>
     """
