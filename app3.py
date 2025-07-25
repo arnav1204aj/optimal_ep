@@ -361,10 +361,11 @@ def get_optimal_batting_order_decay(batters: dict, decay: float = 0.9):
 # ─────────────────────────────────────────────────────────────────────────────
 st.title("T20 Entry Optimization Toolkit")
 
-tab1, tab2, tab3 = st.tabs([
+tab1, tab2, tab3, tab4 = st.tabs([
     "Optimal Batting Order",
     "Optimal Entry Point",
     "Scenario-Based Order",
+    "Info"
 ])
 
 common_batters = sorted(set(intent_dict) & set(fshot_dict) & set(negdur) & set(phase_experience))
@@ -543,3 +544,17 @@ with tab3:
     else:
         st.info("Configure and compute scenario.")
 
+with tab4:
+    st.subheader("About This App")
+    st.markdown(
+        """
+        **Developer:** Arnav Jain  
+        **Contact:** [arnav1204aj@gmail.com](mailto:arnav1204aj@gmail.com)  
+
+        You can find the detailed metrics and methodology behind this app on my Substack:  
+        [arnavj.substack.com](https://arnavj.substack.com/)  
+
+        Read the full breakdown of *The Batting Order Toolkit* here:  
+        [The Batting Order Toolkit](https://arnavj.substack.com/p/the-batting-order-toolkit)
+        """
+    )
