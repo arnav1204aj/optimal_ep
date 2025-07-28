@@ -749,7 +749,7 @@ with tab4:
                         continue
 
                     # Get top 5 overs for the batter under current conditions (enough to check all phases)
-                    batter_optimal_overs = get_top_3_overs(batter_name, ground4, sp4, pc4, 5, 0.5, start, 1,end)
+                    batter_optimal_overs = get_top_3_overs(batter_name, ground4, sp4, pc4, 1, 1, start, 1,end)
 
                     best_in_phase = None
                     # Iterate through the optimal overs to find the best one within the required phase
