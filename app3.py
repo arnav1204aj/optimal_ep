@@ -253,7 +253,8 @@ def make_suggested_player_cards(suggested_players_data, max_avg, max_pace, max_s
 
 
 def render_cards(html, est_rows=4):
-    height = min(200 * est_rows + 140, 1200)
+    # height = min(200 * est_rows + 140, 1200)
+    height = 200 * est_rows + 140
     components.html(BASE_CSS + f'<div class="grid">{html}</div>',
                      height=height, scrolling=True)
 
