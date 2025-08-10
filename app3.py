@@ -375,18 +375,16 @@ def get_top_3_overs(batter, ground_name, num_spinners, num_pacers, n, power, sta
             total_intent += pace_term + spin_term
             
             if (phase_weight * pace_prob) != 0:
-                pace_total   += (pace_term/(phase_weight * pace_prob))
-               
+                pace_total   += pace_term/(phase_weight * pace_prob)
             if (phase_weight * spin_prob) != 0:
-                spin_total   += (spin_term/(phase_weight * spin_prob))
+                spin_total   += spin_term/(phase_weight * spin_prob)
 
 
         denom = (total_balls - s_ball) if (total_balls - s_ball) > 0 else 1
-        
         acc[s_ball]      = total_intent / denom
         pace_arr[s_ball] = pace_total   / denom
         spin_arr[s_ball] = spin_total   / denom
-          
+
 
     # Aggregate to overs
     over_averages = []
@@ -396,7 +394,7 @@ def get_top_3_overs(batter, ground_name, num_spinners, num_pacers, n, power, sta
         over_averages.append(np.mean(acc[i:i+6]))
         pace_overs.append(np.mean(pace_arr[i:i+6]))
         spin_overs.append(np.mean(spin_arr[i:i+6]))
-    
+
     # Handle cases where all values might be NaN or zero for empty ranges if data was missing
     if not over_averages:
         return []
@@ -581,7 +579,6 @@ with tab2:
         ground2 = st.selectbox("Select Ground", grounds, key="e_gnd")
         sp2 = st.slider("Spinners in Opposition", 0, 6, 2, key="e_sp")
         pc2 = st.slider("Pacers in Opposition",   0, 6, 4, key="e_pc")
-        top_n = st.slider('Top n Entry Points', 1, 20, 3, key="top_n")
         go2 = st.button("Calculate Entry Point", key="e_go")
     with c2:
         if go2:
@@ -590,7 +587,7 @@ with tab2:
             elif batter not in intent_dict or batter not in fshot_dict or batter not in negdur or batter not in phase_experience:
                 st.error(f"Data missing for batter: {batter}. Cannot calculate entry point.")
             else:
-                overs = get_top_3_overs(batter, ground2, sp2, pc2, top_n, 0.5, 0, 1)
+                overs = get_top_3_overs(batter, ground2, sp2, pc2, 3, 0.5, 0, 1)
 
                 if not overs:
                     st.warning(f"Could not determine optimal overs for {batter} with given parameters.")
