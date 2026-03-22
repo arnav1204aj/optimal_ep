@@ -288,7 +288,7 @@ def get_top_3_overs(batter, ground_name, num_spinners, num_pacers, n, power, sta
                         'othbatballs' not in intent_data[batter] or
                         len(intent_data[batter]['othbatballs']) <= (overnum - 1) or
                         intent_data[batter]['othbatballs'][overnum - 1] == 0 or
-                        intent_data[batter]['batballs'][overnum - 1] <= 5 or
+                        intent_data[batter]['batballs'][overnum - 1] <= 10 or
                         intent_data[batter]['othbatruns'][overnum - 1] == 0):
                         return fallback1[batter][key]['1-20']
                     return ((intent_data[batter]['batruns'][overnum - 1] / intent_data[batter]['batballs'][overnum - 1]) /
@@ -305,7 +305,7 @@ def get_top_3_overs(batter, ground_name, num_spinners, num_pacers, n, power, sta
                         'othbatballs' not in fshot_data[batter] or
                         len(fshot_data[batter]['othbatballs']) <= (overnum - 1) or
                         fshot_data[batter]['othbatballs'][overnum - 1] == 0 or
-                        fshot_data[batter]['batballs'][overnum - 1] <= 5 or
+                        fshot_data[batter]['batballs'][overnum - 1] <= 10 or
                         fshot_data[batter]['othbatshots'][overnum - 1] == 0 or
                         fshot_data[batter]['batshots'][overnum - 1] == 0):
                         return fallback[batter][key]['1-20']
