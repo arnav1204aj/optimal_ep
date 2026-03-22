@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import pickle
 import networkx as nx
+import base64
 from collections import Counter
 
 
@@ -336,7 +337,7 @@ def get_top_3_overs(batter, ground_name, num_spinners, num_pacers, n, power, sta
 
             # Ensure phase_experience has data for the batter and phase
             if batter not in phase_experience or phase not in phase_experience[batter]:
-                 phase_weight = 1 # Default to 1 if phase experience data is missing
+                 phase_weight = 0 # Default to 1 if phase experience data is missing
             else:
                  phase_weight = phase_experience[batter][phase] / 100
 
@@ -479,13 +480,179 @@ def get_optimal_batting_order_decay(batters: dict, decay: float = 0.9):
 # ─────────────────────────────────────────────────────────────────────────────
 # STREAMLIT UI
 # ─────────────────────────────────────────────────────────────────────────────
-st.markdown(
-    """<style>div[data-testid="stMultiSelect"] button[data-testid="stBaseButton-minimal"]
-    { display: none !important; }</style>""",
-    unsafe_allow_html=True,
-)
+# ─────────────────────────────────────────────────────────────────────────────
+# APP-LEVEL CSS (dark theme + styled components)
+# ─────────────────────────────────────────────────────────────────────────────
+st.markdown("""
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap');
 
-st.title("T20 Entry Optimization Toolkit")
+    .main {
+        background: linear-gradient(135deg, #1a0a0a 0%, #2d1414 100%);
+        font-family: 'Inter', sans-serif;
+    }
+
+    .main-header {
+        background: linear-gradient(135deg, #991b1b 0%, #dc2626 100%);
+        padding: clamp(1rem, 3vw, 2.5rem);
+        border-radius: 16px;
+        margin-bottom: 2rem;
+        box-shadow: 0 10px 40px rgba(220,38,38,0.4);
+        border: 1px solid rgba(255,255,255,0.1);
+        display: flex;
+        align-items: center;
+        gap: clamp(1rem, 2vw, 2rem);
+        flex-wrap: wrap;
+    }
+
+    .main-title {
+        font-size: clamp(2rem, 5vw, 4rem);
+        font-weight: 800;
+        color: white;
+        margin: 0;
+        letter-spacing: -0.5px;
+    }
+
+    .author-info {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-top: 0.5rem;
+        padding-top: 0;
+        border-top: none;
+        flex-wrap: wrap;
+    }
+
+    .author-name {
+        font-size: clamp(0.8rem, 2vw, 1.2rem);
+        font-weight: 600;
+        color: rgba(255,255,255,0.95);
+        margin: 0;
+    }
+
+    .author-link {
+        font-size: clamp(0.75rem, 1.8vw, 1.1rem);
+        color: #fca5a5;
+        text-decoration: none;
+        padding: 0.3rem 0.8rem;
+        background: rgba(252, 165, 165, 0.1);
+        border-radius: 6px;
+        transition: all 0.3s;
+    }
+
+    .author-link:hover {
+        background: rgba(252, 165, 165, 0.2);
+        color: #fecaca;
+    }
+
+    .logo-container {
+        display: flex;
+        align-items: center;
+        flex-shrink: 0;
+    }
+
+    .section-header {
+        font-size: clamp(1.2rem, 2.5vw, 1.3rem);
+        font-weight: 700;
+        color: white;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid rgba(220, 38, 38, 0.5);
+    }
+
+    [data-testid="stMetricValue"] {
+        font-size: clamp(1.3rem, 3vw, 1.8rem);
+        font-weight: 700;
+        color: #fca5a5;
+    }
+
+    [data-testid="stMetricLabel"] {
+        font-size: clamp(0.7rem, 1.5vw, 0.85rem);
+        font-weight: 600;
+        color: rgba(255,255,255,0.7);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    div[data-testid="metric-container"] {
+        background: linear-gradient(135deg, rgba(153, 27, 27, 0.3) 0%, rgba(220, 38, 38, 0.3) 100%);
+        padding: clamp(0.8rem, 2vw, 1.2rem);
+        border-radius: 12px;
+        border: 1px solid rgba(220,38,38,0.3);
+        box-shadow: 0 4px 20px rgba(220,38,38,0.2);
+        margin-bottom: 0.8rem;
+    }
+
+    .stTabs [data-baseweb="tab-list"] {
+        gap: clamp(0.5rem, 2vw, 1rem);
+        background: transparent;
+    }
+
+    .stTabs [data-baseweb="tab"] {
+        background: rgba(220,38,38,0.1);
+        border-radius: 8px;
+        padding: clamp(0.6rem, 1.5vw, 0.8rem) clamp(1rem, 2.5vw, 1.5rem);
+        font-weight: 600;
+        color: rgba(255,255,255,0.7);
+        border: 1px solid rgba(220,38,38,0.2);
+        font-size: clamp(0.85rem, 1.8vw, 1rem);
+    }
+
+    .stTabs [aria-selected="true"] {
+        background: linear-gradient(135deg, #991b1b 0%, #dc2626 100%);
+        color: white;
+    }
+
+    .stSelectbox > div > div {
+        background: #000000 !important;
+        border: 1px solid rgba(100,100,100,0.3);
+        color: white;
+    }
+
+    .stSelectbox [data-baseweb="select"] > div {
+        background: #000000 !important;
+    }
+
+    div[data-testid="stMultiSelect"] button[data-testid="stBaseButton-minimal"] {
+        display: none !important;
+    }
+
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+
+    @media (max-width: 768px) {
+        div[data-testid="metric-container"] {
+            margin-bottom: 0.5rem;
+        }
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# HEADER
+# ─────────────────────────────────────────────────────────────────────────────
+try:
+    with open('logotrans.png', 'rb') as f:
+        logo_base64 = base64.b64encode(f.read()).decode('utf-8')
+    logo_data_url = f"data:image/png;base64,{logo_base64}"
+except Exception:
+    logo_data_url = ""
+
+st.markdown(f"""
+<div class="main-header">
+    <a href="https://arnavj.substack.com/" target="_blank" class="logo-container">
+        <img src="{logo_data_url}" alt="Logo" style="height: clamp(60px, 12vw, 140px); width: auto; object-fit: contain;">
+    </a>
+    <div style="flex: 1; display: flex; flex-direction: column; justify-content: center;">
+        <h1 class="main-title" style="margin: 0;">T20 Entry Optimization Toolkit</h1>
+        <div class="author-info" style="margin: 0.3rem 0 0 0; padding: 0; border: none;">
+            <span class="author-name">Arnav Jain | IITK</span>
+            <a href="https://x.com/arnav1204aj" target="_blank" class="author-link">@arnav1204aj</a>
+        </div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
 
 tab1, tab2 = st.tabs([
@@ -503,7 +670,7 @@ with tab1:
     st.subheader("Optimal Batting Order Generator")
     c1, c2 = st.columns([1, 3])
     with c1:
-        sel     = st.multiselect("Select Batters", common_batters, key="t1_sel")
+        sel     = st.multiselect("Select Batters", common_batters, key="t1_sel", max_selections=11)
         g1      = st.selectbox("Select Ground", grounds, key="t1_g")
         spn     = st.slider("Spinners in Opposition", 0, 6, 2,   key="t1_sp")
         pac     = st.slider("Pacers in Opposition",   0, 6, 4,   key="t1_pc")
