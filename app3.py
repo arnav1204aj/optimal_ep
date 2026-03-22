@@ -479,6 +479,12 @@ def get_optimal_batting_order_decay(batters: dict, decay: float = 0.9):
 # ─────────────────────────────────────────────────────────────────────────────
 # STREAMLIT UI
 # ─────────────────────────────────────────────────────────────────────────────
+st.markdown(
+    """<style>div[data-testid="stMultiSelect"] button[data-testid="stBaseButton-minimal"]
+    { display: none !important; }</style>""",
+    unsafe_allow_html=True,
+)
+
 st.title("T20 Entry Optimization Toolkit")
 
 
