@@ -5,7 +5,6 @@ import pandas as pd
 import pickle
 import networkx as nx
 from collections import Counter
-from agg_score import aggression_score
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -130,16 +129,16 @@ def load_data():
         with open(path, "rb") as f:
             return pickle.load(f)
     data = {
-        'intent_dict':       lp('t20_decay/intents.bin'),
-        'p_intent':          lp('t20_decay/paceintents.bin'),
-        's_intent':          lp('t20_decay/spinintents.bin'),
-        'p_fshot':           lp('t20_decay/pacefshots.bin'),
-        's_fshot':           lp('t20_decay/spinfshots.bin'),
-        'fshot_dict':        lp('t20_decay/fshots.bin'),
-        'gchar':             lp('t20_decay/ground_char.bin'),
-        'phase_experience':  lp('t20_decay/phase_breakdown.bin'),
-        'negdur':            lp('t20_decay/negative_dur.bin'),
-        'overwise_dict':     lp('t20_decay/overwise_scores.bin'),
+        'intent_dict':       lp('t20/intents.bin'),
+        'p_intent':          lp('t20/paceintents.bin'),
+        's_intent':          lp('t20/spinintents.bin'),
+        'p_fshot':           lp('t20/pacefshots.bin'),
+        's_fshot':           lp('t20/spinfshots.bin'),
+        'fshot_dict':        lp('t20/fshots.bin'),
+        'gchar':             lp('t20/ground_char.bin'),
+        'phase_experience':  lp('t20/phase_breakdown.bin'),
+        'negdur':            lp('t20/negative_dur.bin'),
+        'eligible_batters':  set(lp('t20/eligible_batters.bin')),
     }
     players_df = pd.read_csv("players.csv", usecols=["fullname", "image_path"])
     data["image_map"] = players_df.set_index("fullname")["image_path"].to_dict()
@@ -156,7 +155,7 @@ fshot_dict        = data['fshot_dict']
 gchar             = data['gchar']
 phase_experience  = data['phase_experience']
 negdur            = data['negdur']
-overwise_dict     = data['overwise_dict']
+eligible_batters  = data['eligible_batters']
 image_map         = data['image_map']
 
 
@@ -171,13 +170,6 @@ phase_mapping = {
     for i in range(1, 21)
 }
 
-# Reverse mapping for phase names to over ranges
-reverse_phase_mapping = {
-    "Powerplay (1-6 overs)": (1, 6),
-    "Middle (7-11 overs)": (7, 11),
-    "Middle (12-16 overs)": (12, 16),
-    "Death (17-20 overs)": (17, 20)
-}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -236,20 +228,6 @@ def make_entry_player_card(name, dominant_phase):
     </div>
     """
 
-def make_suggested_player_cards(suggested_players_data, max_avg, max_pace, max_spin):
-    cards = []
-    for rank, (name, avg, pace, spin, optimal_over, required_phase) in enumerate(suggested_players_data):
-        header = ("Top Suggestion" if  rank == 0
-                  else f"Suggestion {rank+1}")
-        img_div = f"<div class='player-img' style=\"background-image:url('{image_map.get(name,'')}');\"></div>"
-        cards.append(f"""
-        <div class='card'>
-          {img_div}
-          <div class='card-header'>{header}</div>
-          <div class='name'>{name}</div>
-          {_bars_html(avg, pace, spin, max_avg, max_pace, max_spin)}
-        </div>""")
-    return "".join(cards)
 
 
 def render_cards(html, est_rows=4):
@@ -310,7 +288,7 @@ def get_top_3_overs(batter, ground_name, num_spinners, num_pacers, n, power, sta
                         'othbatballs' not in intent_data[batter] or
                         len(intent_data[batter]['othbatballs']) <= (overnum - 1) or
                         intent_data[batter]['othbatballs'][overnum - 1] == 0 or
-                        intent_data[batter]['batballs'][overnum - 1] == 0 or
+                        intent_data[batter]['batballs'][overnum - 1] <= 5 or
                         intent_data[batter]['othbatruns'][overnum - 1] == 0):
                         return fallback1[batter][key]['1-20']
                     return ((intent_data[batter]['batruns'][overnum - 1] / intent_data[batter]['batballs'][overnum - 1]) /
@@ -327,7 +305,7 @@ def get_top_3_overs(batter, ground_name, num_spinners, num_pacers, n, power, sta
                         'othbatballs' not in fshot_data[batter] or
                         len(fshot_data[batter]['othbatballs']) <= (overnum - 1) or
                         fshot_data[batter]['othbatballs'][overnum - 1] == 0 or
-                        fshot_data[batter]['batballs'][overnum - 1] == 0 or
+                        fshot_data[batter]['batballs'][overnum - 1] <= 5 or
                         fshot_data[batter]['othbatshots'][overnum - 1] == 0 or
                         fshot_data[batter]['batshots'][overnum - 1] == 0):
                         return fallback[batter][key]['1-20']
@@ -504,16 +482,13 @@ def get_optimal_batting_order_decay(batters: dict, decay: float = 0.9):
 st.title("T20 Entry Optimization Toolkit")
 
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs([ # Added tab5 for "Info" and tab4 for "Suggest a Batter"
+tab1, tab2 = st.tabs([
     "Optimal Batting Order",
-    "Optimal Entry Point",
-    "Scenario-Based Order",
-    "Suggest Best Batters", # New tab
-    "Info"
+    "Optimal Entry Point"
 ])
 
 
-common_batters = sorted(list(set(intent_dict) & set(fshot_dict) & set(negdur) & set(phase_experience)))
+common_batters = sorted(list(set(intent_dict) & set(fshot_dict) & set(negdur) & set(phase_experience) & eligible_batters))
 grounds = ["Neutral Venue"] + [g for g in gchar if g != "Neutral Venue"]
 
 
@@ -536,7 +511,7 @@ with tab1:
                 for b in sel:
                     # Ensure batter has data before calling get_top_3_overs
                     if b in intent_dict and b in fshot_dict and b in negdur and b in phase_experience:
-                        bm[b] = get_top_3_overs(b, g1, spn, pac, 5, 0.5, 0, 1)
+                        bm[b] = get_top_3_overs(b, g1, spn, pac, 5, -0.5, 0, 1)
                     else:
                         st.warning(f"Data missing for batter: {b}. Skipping.")
 
@@ -587,7 +562,7 @@ with tab2:
             elif batter not in intent_dict or batter not in fshot_dict or batter not in negdur or batter not in phase_experience:
                 st.error(f"Data missing for batter: {batter}. Cannot calculate entry point.")
             else:
-                overs = get_top_3_overs(batter, ground2, sp2, pc2, 3, 0.5, 0, 1)
+                overs = get_top_3_overs(batter, ground2, sp2, pc2, 3, -0.5, 0, 1)
 
                 if not overs:
                     st.warning(f"Could not determine optimal overs for {batter} with given parameters.")
@@ -616,182 +591,3 @@ with tab2:
                     render_cards(combined, est_rows=1)
         else:
             st.info("Configure parameters and click Calculate Entry Point.")
-
-
-# --- TAB 3: Scenario-Based Order ---
-with tab3:
-    st.subheader("Scenario-Based Order")
-    L, R = st.columns(2)
-    with L:
-        od    = st.slider("Overs completed", 0,20,6, key="t3_od")
-        e_s   = st.number_input("Run rate vs spin",0.0,100.0,8.33,step=0.01, key="t3_es")
-        e_p   = st.number_input("Run rate vs pace",0.0,100.0,8.33,step=0.01, key="t3_ep")
-        ground3 = st.selectbox("Select Ground", grounds, key="t3_g")
-        chase = st.checkbox("Chasing?", key="t3_ch")
-        tgt   = st.number_input("Target",1,300,180, disabled=not chase, key="t3_tg")
-    with R:
-        rs    = st.number_input("Runs so far", 0,300,50, key="t3_rs")
-        ws    = st.slider("Wickets lost (spin)",0,10,0, key="t3_ws")
-        wp    = st.slider("Wickets lost (pace)",0,10,0, key="t3_wp")
-        s3    = st.slider("Spin overs left", 0,20,10, key="t3_s3")
-        p3    = st.slider("Pace overs left", 0,20,10, key="t3_p3")
-        avail = st.multiselect("Batters left", common_batters, key="t3_av")
-        go3   = st.button("Compute Scenario-Based Order", key="t3_go")
-
-
-    if go3:
-        if od >= 20:
-            st.error("All overs done.")
-        elif not avail:
-            st.warning("Select at least one batter.")
-        elif s3 + p3 == 0:
-            st.warning("Select at least one bowler.")
-        else:
-            try:
-                ag, rel, dec = aggression_score(
-                    ground_name     = ground3,
-                    over_number     = od,
-                    runs_scored     = rs,
-                    wickets_lost    = ws + wp,
-                    ground_over_avg = overwise_dict,
-                    is_chasing      = chase,
-                    target          = tgt if chase else None
-                )
-            except Exception as e:
-                st.error(f"Error calculating aggression score: {e}. Please check inputs.")
-                ag, rel, dec = 1.0, 1.0, 0.9 # Fallback values
-                
-            tot = ag + rel or 1
-            ag, rel = 1.5*ag/tot, 1.5*rel/tot
-            
-            # Handle potential division by zero for tw and te
-            tw = ws + wp if (ws + wp) > 0 else 1
-            te = e_s + e_p if (e_s + e_p) > 0 else 1
-            
-            sw, pw = (ws/tw)+(e_p/te), (wp/tw)+(e_s/te)
-
-
-            bm = {}
-            for b in avail:
-                # Ensure batter has data before calling get_top_3_overs
-                if b in intent_dict and b in fshot_dict and b in negdur and b in phase_experience:
-                    ov = get_top_3_overs(b, ground3,
-                                         s3*max(0.5, sw),
-                                         p3*max(0.5, pw),
-                                         5, rel, 6*od, ag)
-                    rem = [(o,sc,pa,sp) for o,sc,pa,sp in ov if o > od]
-                    if rem:
-                        bm[b] = rem
-                else:
-                    st.warning(f"Data missing for batter: {b}. Skipping.")
-
-
-            if not bm:
-                st.error("No overs left or no valid batter data for computation.")
-            else:
-                optimal_over = {
-                    batter: max(data, key=lambda x: x[1])[0]
-                    for batter, data in bm.items()
-                    if data # ignore empty lists
-                }
-
-                # 2) Count how many batters got assigned to each over
-                freq = Counter(optimal_over.values())
-
-                # 3) Sum the counts for any over where count > 1
-                clashes = sum(count for count in freq.values() if count > 1)
-                order3, avg3 = get_optimal_batting_order_decay(bm, dec)
-                so3 = sorted(order3.items(), key=lambda x: x[1][0])
-                ol3 = [(b, t[0], t[1], t[2], t[3]) for b, t in so3]
-                ma3 = max((x[2] for x in ol3), default=1)
-                mp3 = max((x[3] for x in ol3), default=1)
-                ms3 = max((x[4] for x in ol3), default=1)
-
-                col1, col2 = st.columns(2)
-                col1.metric("Average Acceleration", f"{avg3:.4f}")
-                col2.metric("Positional Clashes", str(clashes))
-
-                render_cards(make_order_cards(ol3, ma3, mp3, ms3, True), est_rows=len(ol3))
-    else:
-        st.info("Configure and compute scenario.")
-
-# --- TAB 4: Suggest a Batter ---
-with tab4:
-    st.subheader("Batter Suggestion")
-    c1, c2 = st.columns([1, 3])
-    with c1:
-        ground4 = st.selectbox("Select Ground", grounds, key="t4_gnd")
-        required_phase = st.selectbox(
-            "Required Entry Phase",
-            list(reverse_phase_mapping.keys()),
-            key="t4_phase"
-        )
-        sp4 = st.slider("Spinners in Opposition", 0, 6, 2, key="t4_sp")
-        pc4 = st.slider("Pacers in Opposition",   0, 6, 4, key="t4_pc")
-        candidate_batters = st.multiselect("Candidate Batters", common_batters, key="t4_cands")
-        suggest_button = st.button("Suggest Batters", key="t4_suggest")
-
-    with c2:
-        start = (reverse_phase_mapping[required_phase][0]-1)*6
-        end = (reverse_phase_mapping[required_phase][1])*6
-        if suggest_button:
-            if not candidate_batters:
-                st.warning("Please select at least one candidate batter.")
-            elif sp4 + pc4 == 0:
-                st.warning("Please specify at least one bowler in opposition (spinners or pacers).")
-            else:
-                suggested_results = []
-                phase_start_over, phase_end_over = reverse_phase_mapping[required_phase]
-
-                for batter_name in candidate_batters:
-                    if batter_name not in intent_dict or batter_name not in fshot_dict or batter_name not in negdur or batter_name not in phase_experience:
-                        st.warning(f"Data missing for batter: {batter_name}. Skipping.")
-                        continue
-
-                    # Get top 5 overs for the batter under current conditions (enough to check all phases)
-                    batter_optimal_overs = get_top_3_overs(batter_name, ground4, sp4, pc4, 1, 1, start, 1,end)
-
-                    best_in_phase = None
-                    # Iterate through the optimal overs to find the best one within the required phase
-                    for ov, avg, pace, spin in batter_optimal_overs:
-                        if phase_start_over <= ov <= phase_end_over:
-                            if best_in_phase is None or avg > best_in_phase[1]: # Compare by avg acceleration
-                                best_in_phase = (ov, avg, pace, spin)
-                    
-                    if best_in_phase:
-                        suggested_results.append((batter_name, best_in_phase[1], best_in_phase[2], best_in_phase[3], best_in_phase[0], required_phase))
-
-                if not suggested_results:
-                    st.info("No suitable batters found for the specified phase and conditions.")
-                else:
-                    # Sort by average acceleration in descending order
-                    suggested_results.sort(key=lambda x: x[1], reverse=True)
-
-                    # Determine max values for bar rendering
-                    max_avg = max(x[1] for x in suggested_results) if suggested_results else 1
-                    max_pace = max(x[2] for x in suggested_results) if suggested_results else 1
-                    max_spin = max(x[3] for x in suggested_results) if suggested_results else 1
-
-                    rendered_html = make_suggested_player_cards(suggested_results, max_avg, max_pace, max_spin)
-                    render_cards(rendered_html, est_rows=len(suggested_results))
-        else:
-            st.info("Configure parameters and click 'Suggest Batters'.")
-
-
-# --- TAB 5: Info --- (renamed from tab4)
-with tab5:
-    st.subheader("About This App")
-    st.markdown(
-        """
-        **Developer:** Arnav Jain   
-        **Contact:** [arnav1204aj@gmail.com](mailto:arnav1204aj@gmail.com)   
-
-        
-        You can find the detailed metrics and methodology behind this app on my Substack:   
-        [arnavj.substack.com](https://arnavj.substack.com/)   
-
-
-        Read the full breakdown of *The Batting Order Toolkit* here:   
-        [The Batting Order Toolkit](https://arnavj.substack.com/p/the-batting-order-toolkit)
-        """
-    )
