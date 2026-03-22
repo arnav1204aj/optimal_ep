@@ -529,6 +529,23 @@ with tab1:
 
                     # 3) Sum the counts for any over where count > 1
                     clashes = sum(count for count in freq.values() if count > 1)
+
+                    clash_pairs = []
+                    over_to_batters = {}
+                    for batter_name, over_no in optimal_over.items():
+                        over_to_batters.setdefault(over_no, []).append(batter_name)
+
+                    for over_no, batter_names in sorted(over_to_batters.items()):
+                        if len(batter_names) > 1:
+                            # Skip Over 1 clashes — both are openers, not a real clash
+                            if over_no == 1:
+                                continue
+                            batter_names = sorted(batter_names)
+                            for i in range(len(batter_names)):
+                                for j in range(i + 1, len(batter_names)):
+                                    clash_pairs.append((over_no, batter_names[i], batter_names[j]))
+
+                    total_clash_pairs = len(clash_pairs)
                     order, avg = get_optimal_batting_order(bm)
                     so    = sorted(order.items(), key=lambda x: x[1][0])
                     ol    = [(b, t[0], t[1], t[2], t[3]) for b, t in so]
@@ -536,9 +553,27 @@ with tab1:
                     mp    = max((x[3] for x in ol), default=1)
                     ms    = max((x[4] for x in ol), default=1)
 
-                    col1, col2 = st.columns(2)
-                    col1.metric("Average Acceleration", f"{avg:.4f}")
-                    col2.metric("Positional Clashes", str(clashes))
+                    m1, m2 = st.columns(2)
+                    with m1:
+                        st.metric("Average Acceleration", f"{avg:.4f}")
+                    with m2:
+                        st.metric("Positional Clashes", total_clash_pairs)
+
+                    if clash_pairs:
+                        st.markdown(
+                            '<h4 style="color:#ff0000; border-bottom:2px solid #ff0000; '
+                            'padding-bottom:6px; margin-top:16px;">⚠ Clash Details</h4>',
+                            unsafe_allow_html=True,
+                        )
+                        clash_lines = [
+                            f'- <span style="color:#ff0000; font-weight:600;">{b1}</span> and '
+                            f'<span style="color:#ff0000; font-weight:600;">{b2}</span> both have '
+                            f'<span style="color:#ff0000; font-weight:600;">Over {ov}</span> as their ideal entry point.'
+                            for ov, b1, b2 in clash_pairs
+                        ]
+                        st.markdown("\n".join(clash_lines), unsafe_allow_html=True)
+                    else:
+                        st.success("No positional clashes found among selected batters.")
 
                     render_cards(make_order_cards(ol, ma, mp, ms, False), est_rows=len(ol))
         else:
