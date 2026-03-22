@@ -536,6 +536,11 @@ with tab1:
                     # 3) Sum the counts for any over where count > 1
                     clashes = sum(count for count in freq.values() if count > 1)
 
+                    order, avg = get_optimal_batting_order(bm)
+                    so    = sorted(order.items(), key=lambda x: x[1][0])
+                    # Identify the two openers from the optimal order
+                    openers = set(b for b, _ in so[:2])
+
                     clash_pairs = []
                     over_to_batters = {}
                     for batter_name, over_no in optimal_over.items():
@@ -543,16 +548,15 @@ with tab1:
 
                     for over_no, batter_names in sorted(over_to_batters.items()):
                         if len(batter_names) > 1:
-                            # Skip Over 1 clashes — both are openers, not a real clash
-                            if over_no == 1:
-                                continue
                             batter_names = sorted(batter_names)
                             for i in range(len(batter_names)):
                                 for j in range(i + 1, len(batter_names)):
+                                    # Skip clash if both players are openers
+                                    if {batter_names[i], batter_names[j]} <= openers:
+                                        continue
                                     clash_pairs.append((over_no, batter_names[i], batter_names[j]))
 
                     total_clash_pairs = len(clash_pairs)
-                    order, avg = get_optimal_batting_order(bm)
                     so    = sorted(order.items(), key=lambda x: x[1][0])
                     ol    = [(b, t[0], t[1], t[2], t[3]) for b, t in so]
                     ma    = max((x[2] for x in ol), default=1)
